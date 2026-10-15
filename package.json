@@ -1,0 +1,10 @@
+{
+  "name": "private-diary",
+  "version": "1.0.0",
+  "description": "A private, read-only-shareable personal diary. Free to host (Vercel + TiDB).",
+  "private": false,
+  "license": "MIT",
+  "engines": { "node": "22.x" },
+  "scripts": { "dev": "node dev-server.js" },
+  "dependencies": { "mysql2": "^3.11.0" }
+}
