@@ -16,11 +16,12 @@ async function raw() {
   }
   if (!pool) {
     const mysql = require('mysql2/promise');
-    const url = new URL(process.env.DB_URL);
+    const e = process.env;
+    const url = e.DB_URL ? new URL(e.DB_URL) : null;
     pool = mysql.createPool({
-      host: url.hostname, port: Number(url.port || 4000),
-      user: decodeURIComponent(url.username), password: decodeURIComponent(url.password),
-      database: url.pathname.slice(1) || 'test',
+      host: url ? url.hostname : e.DB_HOST, port: Number(url ? url.port || 4000 : e.DB_PORT || 4000),
+      user: url ? decodeURIComponent(url.username) : e.DB_USER, password: url ? decodeURIComponent(url.password) : e.DB_PASSWORD,
+      database: (url ? url.pathname.slice(1) : e.DB_NAME) || 'test',
       ssl: { minVersion: 'TLSv1.2', rejectUnauthorized: true },
       connectionLimit: 3, waitForConnections: true, charset: 'utf8mb4',
     });

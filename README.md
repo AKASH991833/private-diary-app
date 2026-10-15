@@ -32,7 +32,7 @@ A personal diary website you write in yourself, and share read-only with only th
 1. Create a free [TiDB Cloud Serverless](https://tidbcloud.com) cluster and copy its connection details.
 2. Fork this repo and import it in [Vercel](https://vercel.com) (Hobby plan).
 3. Add these environment variables in Vercel:
-   - `DB_URL` = `mysql://USER:PASSWORD@HOST:4000/test`
+   - `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` (and optionally `DB_PORT`, default 4000) from your TiDB connect dialog. Or one `DB_URL` = `mysql://USER:PASSWORD@HOST:4000/DBNAME`.
    - `OWNER_PASSWORD` = the password you will use at `/owner`
 4. Deploy. Tables are created automatically on first request.
 5. Open `/owner`, log in, write a page, then use the *Share* tab to make a link.
