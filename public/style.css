@@ -116,3 +116,5 @@ textarea.field{resize:vertical;font-family:Kalam,"Noto Sans Devanagari",sans-ser
 input[type=range]{width:100%;accent-color:var(--accd)}
 
 .stk{color:#5a4a3a}[data-theme=dark] .stk{color:#d9c9a5}
+
+.instbar{display:flex;align-items:center;gap:10px;margin:8px 16px 0;padding:10px 12px;border-radius:14px;background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow);font-size:13px;color:var(--ink)}.instbar span{flex:1}.instbar .ib{width:28px;height:28px;font-size:20px;line-height:1;color:var(--mute)}

@@ -403,6 +403,35 @@ function musicModal(it, ed) {
 }
 
 /* ---------- screens ---------- */
+
+/* ---- PWA install ---- */
+let deferredInstall = null;
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredInstall = e; if (S.mode === 'owner' && !cur) { const b = $('.instbar'); if (!b && !$('.settings')) home(); } });
+window.addEventListener('appinstalled', () => { deferredInstall = null; localStorage.setItem('pwaDone', '1'); toast('App install ho gaya'); if (S.mode === 'owner' && !cur) home(); });
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+async function doInstall() {
+  if (deferredInstall) { deferredInstall.prompt(); const c = await deferredInstall.userChoice.catch(() => ({})); deferredInstall = null; if (c.outcome !== 'accepted') toast('Install baad me Settings se bhi ho sakta hai'); return; }
+  if (isIOS()) return iosHint();
+  modal('App install karo', h('div', {}, h('p', { class: 'sub' }, 'Browser ke menu (⋮) me "Install app" ya "Add to Home screen" dabao. Chrome me khologe to yeh option milta hai.')));
+}
+function iosHint() {
+  modal('iPhone me install', h('div', {}, h('p', { class: 'sub' }, 'Safari me yeh page kholo. Neeche Share (⬆︎) dabao, phir "Add to Home Screen", phir "Add".')));
+}
+function canOfferInstall() { return !S.readonly && !isStandalone(); }
+function installBar() {
+  if (!canOfferInstall() || localStorage.getItem('pwaHide') === '1' || (!deferredInstall && !isIOS())) return null;
+  return h('div', { class: 'instbar' }, h('span', {}, 'Dayri ko app ki tarah install karo'),
+    h('button', { class: 'btn sm', onclick: doInstall }, 'Install'),
+    h('button', { class: 'ib', 'aria-label': 'hide', onclick: (e) => { localStorage.setItem('pwaHide', '1'); e.currentTarget.parentNode.remove(); } }, '×'));
+}
+function installSection() {
+  if (S.readonly) return [];
+  if (isStandalone()) return [h('h3', {}, 'App'), h('p', { class: 'sub' }, 'App install hai.')];
+  return [h('h3', {}, 'App'), h('p', { class: 'sub' }, 'Home screen pe app ki tarah chalao, full screen.'), h('button', { class: 'btn sec', onclick: doInstall }, 'Install app')];
+}
+
 let S = { mode: 'gate', pages: [], name: 'Meri Dayri', token: null, readonly: false, year: new Date().getFullYear(), month: null, settings: { paper: 'lined', theme: 'auto' } };
 let cur = null; // active editor, if any
 
@@ -453,7 +482,7 @@ function home(first) {
   root.replaceChildren(h('div', { class: 'home' },
     topbar(null, h('div', { class: 'ttl' }, S.name), [themeBtn(), S.readonly ? null : iconBtn('gear', openSettings, 'settings')]),
     h('div', { class: 'yr' }, iconBtn('back', () => { S.year--; home(); }), h('b', {}, y), h('button', { class: 'ib flip', onclick: () => { S.year++; home(); }, html: IC.back })),
-    tabs, h('div', { class: 'cards' }, list),
+    installBar(), tabs, h('div', { class: 'cards' }, list),
     S.readonly ? null : h('button', { class: 'fab', onclick: newPage, 'aria-label': 'new page' }, ico('plus'))));
 }
 function card(p) {
@@ -526,7 +555,7 @@ async function openSettings(noPush) {
         h('button', { class: 'btn sm danger', onclick: async () => { if (!confirm('Ye link hamesha ke liye delete?')) return; await api('owner/links/' + l.id, 'DELETE'); reload(); } }, 'Delete'))));
     const ll = h('input', { class: 'field', placeholder: 'Kiske liye (naam)' }), lp = h('input', { class: 'field', placeholder: 'Passcode (4+ akshar)' });
     box.replaceChildren(
-      h('h3', {}, 'Dikhawa'), h('p', { class: 'sub' }, 'Theme'), chips({ auto: 'Auto', light: 'Light', dark: 'Dark' }, localStorage.getItem('theme') || 'auto', (k) => { applyTheme(k); api('owner/settings', 'POST', { theme: k }); }),
+      installSection(), h('h3', {}, 'Dikhawa'), h('p', { class: 'sub' }, 'Theme'), chips({ auto: 'Auto', light: 'Light', dark: 'Dark' }, localStorage.getItem('theme') || 'auto', (k) => { applyTheme(k); api('owner/settings', 'POST', { theme: k }); }),
       h('p', { class: 'sub' }, 'Naye page ka paper'), chips({ lined: 'Lined', dots: 'Dotted', grid: 'Grid', plain: 'Plain' }, st.paper, (k) => { S.settings.paper = k; api('owner/settings', 'POST', { paper: k }); }),
       h('p', { class: 'sub' }, 'Dayri ka naam'), nm,
       h('h3', {}, 'Password'), h('p', { class: 'hint' }, 'Password badalne par saare devices aur share links ke log dobara login karenge.'), cp, np,
