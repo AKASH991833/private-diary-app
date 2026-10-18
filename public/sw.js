@@ -16,3 +16,17 @@ self.addEventListener('fetch', (e) => {
     return hit || net;
   }));
 });
+
+self.addEventListener('push', (e) => {
+  let d = { title: 'Meri Dayri', body: 'Aaj ka page likhna baaki hai', url: '/owner' };
+  try { if (e.data) d = { ...d, ...e.data.json() }; } catch {}
+  e.waitUntil(self.registration.showNotification(d.title, { body: d.body, icon: '/icons/icon-192.png', badge: '/icons/icon-192.png', data: { url: d.url } }));
+});
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  e.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then((cs) => {
+    const c = cs.find((x) => x.url.includes('/owner'));
+    if (c) return c.focus();
+    return clients.openWindow(e.notification.data && e.notification.data.url || '/owner');
+  }));
+});

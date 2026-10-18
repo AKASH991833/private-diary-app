@@ -65,6 +65,12 @@ const IC = {
   sun: svg('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
   moon: svg('<path d="M21 13A9 9 0 1 1 11 3a7 7 0 0 0 10 10z"/>'),
   lock: svg('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'),
+  chart: svg('<path d="M5 20v-6M10 20V6M15 20v-9M20 20v-4"/><path d="M3 20h18"/>'),
+  search: svg('<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>'),
+  bell: svg('<path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>'),
+  card: svg('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 10h10M7 14h6"/>'),
+  finger: svg('<path d="M12 11a3 3 0 0 0-3 3c0 2.5.8 4.7 1.7 6.5M12 11a3 3 0 0 1 3 3c0 1.5-.2 3-.6 4.4M12 11V9a5 5 0 0 1 10 0v4c0 2-.3 4-.9 5.8M7 9a5 5 0 0 1 5-4.5M4.5 12.5c.3 3 1.2 5.6 2.4 7.7"/>'),
+  download: svg('<path d="M12 3v12M7 10l5 5 5-5M4 21h16"/>'),
 };
 const ico = (n) => h('span', { class: 'ic', html: IC[n] });
 
@@ -87,6 +93,9 @@ const FILTERS = { none: 'none', warm: 'sepia(.25) saturate(1.2) brightness(1.04)
 const FRAMES = { polaroid: 'Polaroid', tape: 'Tape', plain: 'Plain', round: 'Round', film: 'Film' };
 const FONTSET = { kalam: ['Kalam', 'Kalam, "Noto Sans Devanagari", cursive'], caveat: ['Caveat', 'Caveat, Kalam, cursive'], yatra: ['Yatra One', 'Yatra, serif'], serif: ['Serif', '"Bodoni Moda", Georgia, serif'] };
 const COLORS = ['auto', '#b24a6a', '#5b4a8a', '#2f5d8a', '#7a3e2b', '#b8923a', '#ffffff'];
+const MOODMAP = { khush: ['\u{1F60A}', 'Khush', 5], pyaar: ['\u2764\uFE0F', 'Pyaar', 5], umeed: ['\u{1F308}', 'Umeed', 4], shaant: ['\u{1F60C}', 'Shaant', 4], yaad: ['\u{1F940}', 'Yaad', 3], thakaan: ['\u{1F634}', 'Thakaan', 2], gussa: ['\u{1F620}', 'Gussa', 1], udaas: ['\u{1F622}', 'Udaas', 1] };
+const todayStrLocal = () => { const d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
+const b64ToU8 = (b) => { const p = '='.repeat((4 - b.length % 4) % 4), x = atob((b + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(x, (c) => c.charCodeAt(0)); };
 
 /* ---------- media ---------- */
 const mediaUrl = (id) => '/m/' + id;
@@ -454,10 +463,12 @@ async function startOwner() {
   if (!sessionStorage.getItem('d_alive')) { try { await api('owner/logout', 'POST'); } catch {} return gateOwner(); }
   const me = await api('owner/me').catch(() => ({ owner: false }));
   if (!me.owner) return gateOwner();
+  if (lockGet() && sessionStorage.getItem('d_unlock') !== '1') return lockScreen();
   const [pg, st] = await Promise.all([api('owner/pages'), api('owner/settings')]);
   S = { ...S, mode: 'owner', pages: pg.pages, name: st.name, readonly: false, settings: st };
   if (!localStorage.getItem('theme_synced')) { applyTheme(st.theme || 'auto'); localStorage.setItem('theme_synced', '1'); }
   home(true);
+  setTimeout(localRemindCheck, 1500);
 }
 async function startViewer(token) {
   S.token = token; S.readonly = true; S.mode = 'viewer';
@@ -471,6 +482,12 @@ async function startViewer(token) {
 }
 
 function push(state) { history.pushState(state, ''); window.scrollTo(0, 0); }
+function otdSection() {
+  const t = new Date(), m = t.getMonth(), dd = t.getDate(), y = t.getFullYear();
+  const old = S.pages.filter((p) => { const d = parseDay(p.day); return d.getMonth() === m && d.getDate() === dd && d.getFullYear() < y; }).sort((a, b) => (a.day < b.day ? 1 : -1));
+  if (!old.length) return null;
+  return h('div', { class: 'otd' }, h('p', { class: 'sub' }, '\u2728 Aaj hi ke din, pichle saal'), h('div', { class: 'cards' }, old.map(card)));
+}
 function home(first) {
   if (first) history.replaceState({ v: 'home' }, '');
   if (curAudio) curAudio.a.pause();
@@ -481,16 +498,16 @@ function home(first) {
     MONTHS.map((n, i) => h('b', { class: (S.month === i ? 'on ' : '') + (byM(i).length ? 'has' : ''), onclick: () => { S.month = i; home(); } }, n)));
   const list = shown.length ? shown.map(card) : [h('div', { class: 'empty' }, h('div', { class: 'big', html: STK.sprig }), h('p', {}, S.readonly ? 'Is mahine koi page share nahi hua.' : 'Abhi koi page nahi. Neeche + dabao aur aaj ka page likho.'))];
   root.replaceChildren(h('div', { class: 'home' },
-    topbar(null, h('div', { class: 'ttl' }, S.name), [themeBtn(), S.readonly ? null : iconBtn('gear', openSettings, 'settings')]),
+    topbar(null, h('div', { class: 'ttl' }, S.name), [iconBtn('search', searchScreen, 'khojo'), S.readonly ? null : iconBtn('chart', () => moodScreen(), 'mood'), themeBtn(), S.readonly ? null : iconBtn('gear', openSettings, 'settings')]),
     h('div', { class: 'yr' }, iconBtn('back', () => { S.year--; home(); }), h('b', {}, y), h('button', { class: 'ib flip', onclick: () => { S.year++; home(); }, html: IC.back })),
-    installBar(), tabs, h('div', { class: 'cards' }, list),
+    installBar(), tabs, otdSection(), h('div', { class: 'cards' }, list),
     S.readonly ? null : h('button', { class: 'fab', onclick: newPage, 'aria-label': 'new page' }, ico('plus'))));
 }
 function card(p) {
   const d = parseDay(p.day), first = p.items.find((i) => i.t === 'photo'), txt = p.items.find((i) => i.t === 'text');
   return h('button', { class: 'card', onclick: () => openPage(p.id) },
-    h('div', { class: 'cd' }, h('b', {}, d.getDate()), h('small', {}, MONTHS[d.getMonth()])),
-    h('div', { class: 'cm' }, h('div', { class: 'ct' }, p.title || (txt ? txt.text.split('\n')[0].slice(0, 40) : WD[d.getDay()] + ' ka page')), h('div', { class: 'cs' }, WD[d.getDay()] + ' · ' + p.items.length + ' cheezein' + (!S.readonly && p.shared ? ' · shared' : ''))),
+    h('div', { class: 'cd' }, h('b', {}, d.getDate()), h('small', {}, MONTHS[d.getMonth()]), p.mood && MOODMAP[p.mood] ? h('i', { class: 'cmood' }, MOODMAP[p.mood][0]) : null),
+    h('div', { class: 'cm' }, h('div', { class: 'ct' }, p.title || (txt ? txt.text.split('\n')[0].slice(0, 40) : WD[d.getDay()] + ' ka page')), h('div', { class: 'cs' }, WD[d.getDay()] + ' · ' + p.items.length + ' cheezein' + (!S.readonly && p.shared ? ' · shared' : '') + ((p.tags || []).length ? ' · ' + p.tags.map((t) => '#' + t).join(' ') : ''))),
     first ? h('img', { class: 'cth', src: mediaUrl(first.mid), alt: '', loading: 'lazy' }) : h('div', { class: 'cth empty-th', html: STK.flower }));
 }
 async function newPage() {
@@ -533,6 +550,9 @@ function pageMenu(p, ed) {
     h('p', { class: 'sub' }, 'Date'), h('input', { class: 'field', type: 'date', value: p.day, onchange: (e) => { if (e.target.value) { p.day = e.target.value; ed.sheet.querySelector('.phead').replaceWith(pageHeader(p)); ed.changed(); } } }),
     h('p', { class: 'sub' }, 'Title (list me dikhega)'), h('input', { class: 'field', value: p.title, maxlength: 60, placeholder: 'Optional', oninput: (e) => { p.title = e.target.value; ed.changed(); } }),
     h('p', { class: 'sub' }, 'Paper'), chips({ lined: 'Lined', dots: 'Dotted', grid: 'Grid', plain: 'Plain' }, p.paper, (k) => { p.paper = k; ed.sheet.className = 'sheet editing paper-' + k; ed.changed(); }),
+    h('p', { class: 'sub' }, 'Mood'), h('div', { class: 'chips' }, h('button', { class: 'chip' + (!p.mood ? ' on' : ''), onclick: (e) => { p.mood = ''; [...e.target.parentNode.children].forEach((c) => c.classList.remove('on')); e.target.classList.add('on'); ed.changed(); } }, '\u2014'), Object.entries(MOODMAP).map(([k, v]) => h('button', { class: 'chip' + (p.mood === k ? ' on' : ''), onclick: (e) => { p.mood = k; [...e.target.parentNode.children].forEach((c) => c.classList.remove('on')); e.target.classList.add('on'); ed.changed(); } }, v[0] + ' ' + v[1]))),
+    h('p', { class: 'sub' }, 'Tags (comma se alag, jaise: shayari, dost)'), h('input', { class: 'field', value: (p.tags || []).join(', '), maxlength: 200, placeholder: '#shayari #yaadein', onchange: (e) => { p.tags = e.target.value.split(',').map((t) => t.replace(/^#+/, '').trim()).filter(Boolean).slice(0, 12); e.target.value = p.tags.join(', '); ed.changed(); } }),
+    h('button', { class: 'btn sec', style: { marginTop: '14px' }, onclick: () => { m.close(); cardModal(p); } }, '\u{1F3B4} Shayari card banao (image)'),
     h('label', { class: 'sw' }, h('input', { type: 'checkbox', checked: p.shared, onchange: (e) => { p.shared = e.target.checked; ed.changed(); } }), h('span', {}, 'Share links walon ko ye page dikhao')),
     h('button', { class: 'btn danger', onclick: async () => { if (!confirm('Ye page hamesha ke liye delete karna hai?')) return; await api('owner/pages/' + p.id, 'DELETE'); S.pages = S.pages.filter((x) => x.id !== p.id); cur = null; m.close(); history.back(); } }, 'Page delete karo'),
     h('button', { class: 'btn', onclick: () => m.close() }, 'Ho gaya')));
@@ -564,12 +584,280 @@ async function openSettings(noPush) {
       h('h3', {}, 'Share links'), h('p', { class: 'hint' }, 'Har insaan ko alag link + passcode. Wo sirf wahi pages padh sakta hai jo tumne "share" kiye hain, kuch badal nahi sakta.'),
       ...(llist.length ? llist : [h('p', { class: 'muted' }, 'Abhi koi link nahi.')]),
       h('div', { class: 'newlink' }, ll, lp, h('button', { class: 'btn', onclick: async () => { try { await api('owner/links', 'POST', { label: ll.value, passcode: lp.value }); toast('Naya link ban gaya'); reload(); } catch (e) { toast(e.message); } } }, 'Naya share link banao')),
+      h('h3', {}, 'App lock'), ...lockSection(),
+      h('h3', {}, 'Roz raat yaad (reminder)'), ...remindSection(),
+      h('h3', {}, 'Backup / Export'), ...backupSection(),
       h('h3', {}, 'Storage'), h('p', { class: 'muted' }, `${(sg.bytes / 1024 / 1024).toFixed(1)} MB use hua, ${sg.files} files (free limit lagbhag 1 GB).`),
       h('button', { class: 'btn sec', onclick: async () => { const r = await api('owner/storage', 'POST'); toast(`${r.removed} bekaar file hata di`); } }, 'Bekaar files saaf karo'),
       h('h3', {}, 'Account'), h('button', { class: 'btn sec', onclick: async () => { sessionStorage.removeItem('d_alive'); await api('owner/logout', 'POST'); gateOwner(); } }, 'Logout'));
   };
   draw();
   root.replaceChildren(h('div', { class: 'home settings' }, topbar(iconBtn('back', () => history.back(), 'back'), h('div', { class: 'ttl' }, 'Settings'), null), box));
+}
+
+
+/* ---------- new screens: search, mood, card, lock, reminder, backup ---------- */
+
+function searchScreen() {
+  push({ v: 'search' });
+  let tag = null, query = '';
+  const allTags = [...new Set(S.pages.flatMap((p) => p.tags || []))];
+  const res = h('div', { class: 'cards' });
+  const draw = () => {
+    const ql = query.trim().toLowerCase();
+    const hits = S.pages.filter((p) => {
+      if (tag && !(p.tags || []).includes(tag)) return false;
+      if (!ql) return true;
+      const hay = [p.title, p.day, ...(p.tags || []).map((t) => '#' + t), ...p.items.filter((i) => ['text', 'label', 'note'].includes(i.t)).map((i) => (i.text || '') + '\n' + (i.lines || ''))].join('\n').toLowerCase();
+      return ql.split(/\s+/).every((w) => hay.includes(w));
+    }).sort((a, b) => (a.day < b.day ? 1 : -1));
+    res.replaceChildren(...(hits.length ? hits.map(card) : [h('p', { class: 'muted', style: { padding: '26px', textAlign: 'center' } }, 'Kuch nahi mila.')]));
+  };
+  const inp = h('input', { class: 'field', placeholder: 'Shabd, #tag ya date se dhundho…', oninput: (e) => { query = e.target.value; draw(); } });
+  const chipsRow = allTags.length ? h('div', { class: 'chips', style: { margin: '10px 16px' } }, allTags.map((t) => h('button', { class: 'chip', onclick: (e) => { tag = tag === t ? null : t; [...e.target.parentNode.children].forEach((c) => c.classList.remove('on')); if (tag) e.target.classList.add('on'); draw(); } }, '#' + t))) : null;
+  draw();
+  root.replaceChildren(h('div', { class: 'home' }, topbar(iconBtn('back', () => history.back(), 'back'), h('div', { class: 'ttl' }, 'Khojo'), null), h('div', { style: { padding: '6px 16px 0' } }, inp), chipsRow, res));
+  setTimeout(() => inp.focus(), 250);
+}
+
+function moodScreen(noPush) {
+  if (!noPush) push({ v: 'mood' });
+  const nowD = new Date();
+  if (S.moodY == null) { S.moodY = nowD.getFullYear(); S.moodM = nowD.getMonth(); }
+  const y = S.moodY, m = S.moodM;
+  const daysIn = new Date(y, m + 1, 0).getDate();
+  const byDay = {};
+  S.pages.forEach((p) => { const d = parseDay(p.day); if (d.getFullYear() === y && d.getMonth() === m && p.mood && MOODMAP[p.mood]) byDay[d.getDate()] = p.mood; });
+  const firstWd = new Date(y, m, 1).getDay();
+  const cells = [];
+  for (let i = 0; i < firstWd; i++) cells.push(h('span', { class: 'mc-e' }));
+  for (let d = 1; d <= daysIn; d++) { const md = byDay[d]; cells.push(h('span', { class: 'mc-d' + (md ? ' on' : '') }, md ? MOODMAP[md][0] : String(d))); }
+  const W2 = 520, H2 = 130, pd = 26;
+  const pts = Object.entries(byDay).map(([d, md]) => [Number(d), MOODMAP[md][2]]).sort((a, b) => a[0] - b[0]);
+  const X = (d) => pd + (d - 1) / (daysIn - 1 || 1) * (W2 - 2 * pd), Y = (sc) => H2 - pd - (sc - 1) / 4 * (H2 - 2 * pd);
+  const path = pts.map((p, i) => (i ? 'L' : 'M') + X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1)).join(' ');
+  const svgEl = pts.length > 1
+    ? `<svg viewBox="0 0 ${W2} ${H2}" class="mgraph">${[1, 2, 3, 4, 5].map((sc) => `<line x1="${pd}" y1="${Y(sc)}" x2="${W2 - pd}" y2="${Y(sc)}" class="gl"/>`).join('')}<path d="${path}" class="ml"/>${pts.map((p) => `<circle cx="${X(p[0]).toFixed(1)}" cy="${Y(p[1]).toFixed(1)}" r="4.5" class="md"/>`).join('')}</svg>`
+    : '<p class="muted">Graph ke liye kam se kam 2 din ka mood chahiye. Page settings me mood chuno.</p>';
+  const counts = {};
+  Object.values(byDay).forEach((md) => (counts[md] = (counts[md] || 0) + 1));
+  const cnt = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([md, n]) => h('span', { class: 'chip' }, MOODMAP[md][0] + ' ' + MOODMAP[md][1] + ' × ' + n));
+  const prevM = () => { S.moodM--; if (S.moodM < 0) { S.moodM = 11; S.moodY--; } moodScreen(true); };
+  const nextM = () => { S.moodM++; if (S.moodM > 11) { S.moodM = 0; S.moodY++; } moodScreen(true); };
+  root.replaceChildren(h('div', { class: 'home settings' },
+    topbar(iconBtn('back', () => history.back(), 'back'), h('div', { class: 'ttl' }, 'Mood'), null),
+    h('div', { class: 'yr' }, iconBtn('back', prevM), h('b', {}, MFULL[m] + ' ' + y), h('button', { class: 'ib flip', html: IC.back, onclick: nextM })),
+    h('div', { class: 'mcal' }, ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d) => h('span', { class: 'mc-h' }, d)), cells),
+    h('div', { class: 'set' }, h('h3', {}, 'Mood ka graph'), h('div', { html: svgEl }), h('h3', {}, 'Is mahine'), cnt.length ? h('div', { class: 'chips' }, cnt) : h('p', { class: 'muted' }, 'Is mahine koi mood nahi.'))));
+}
+
+/* ---- shayari card ---- */
+const CARDSTYLES = {
+  parchment: { bg: '#f6eeda', bg2: '#eee0c2', ink: '#4a3626', accent: '#7a3e2b', name: 'Parchment' },
+  midnight: { bg: '#141c33', bg2: '#1e2a4a', ink: '#e6c27a', accent: '#e6c27a', name: 'Midnight Gold' },
+  rose: { bg: '#f9e8ec', bg2: '#f2d4dc', ink: '#7b2d4a', accent: '#a04a68', name: 'Gulabi' },
+};
+async function drawCard(cv, text, st, meta) {
+  try { await Promise.all([document.fonts.load('76px Yatra'), document.fonts.load('34px Kalam')]); } catch {}
+  const x = cv.getContext('2d'), W2 = cv.width, H2 = cv.height;
+  const g = x.createLinearGradient(0, 0, 0, H2); g.addColorStop(0, st.bg); g.addColorStop(1, st.bg2);
+  x.fillStyle = g; x.fillRect(0, 0, W2, H2);
+  x.strokeStyle = st.accent; x.lineWidth = 5; x.strokeRect(36, 36, W2 - 72, H2 - 72);
+  x.lineWidth = 1.5; x.strokeRect(56, 56, W2 - 112, H2 - 112);
+  x.fillStyle = st.accent;
+  for (const [cx, cy] of [[36, 36], [W2 - 36, 36], [36, H2 - 36], [W2 - 36, H2 - 36]]) { x.beginPath(); x.arc(cx, cy, 10, 0, 7); x.fill(); }
+  x.textAlign = 'center'; x.textBaseline = 'middle';
+  const lines = [];
+  for (const para of text.split('\n')) {
+    if (!para.trim()) { lines.push(''); continue; }
+    let line = '';
+    for (const w of para.trim().split(/\s+/)) { const t = line ? line + ' ' + w : w; if (x.measureText(t).width > W2 - 280 && line) { lines.push(line); line = w; } else line = t; }
+    lines.push(line);
+  }
+  let fs = 80;
+  while (fs > 28) { x.font = fs + 'px Yatra, serif'; if (!lines.some((l) => x.measureText(l).width > W2 - 240) && lines.length * fs * 1.55 < H2 - 480) break; fs -= 4; }
+  x.font = fs + 'px Yatra, serif'; x.fillStyle = st.ink;
+  const lh = fs * 1.55, y0 = H2 / 2 - (lines.length - 1) * lh / 2 - 40;
+  lines.forEach((l, i) => x.fillText(l, W2 / 2, y0 + i * lh));
+  x.font = '34px Kalam, cursive'; x.fillStyle = st.accent;
+  x.fillText('~ ' + (meta.name || 'Meri Dayri'), W2 / 2, H2 - 150);
+  if (meta.date) { x.font = '28px Kalam, cursive'; x.fillText(meta.date, W2 / 2, H2 - 104); }
+}
+function cardModal(p) {
+  const cv = h('canvas', { class: 'cardcv', width: 1080, height: 1350 });
+  const texts = p.items.filter((i) => i.t === 'text' && (i.text || '').trim());
+  let style = 'parchment';
+  const ta = h('textarea', { class: 'field', rows: 6, placeholder: 'Apni shayari yahan likho…' }, texts.length ? texts[0].text : '');
+  const d = parseDay(p.day);
+  const redraw = () => drawCard(cv, ta.value.trim() || 'Shayari yahan likho…', CARDSTYLES[style], { name: S.name, date: d.getDate() + ' ' + MFULL[d.getMonth()] + ' ' + d.getFullYear() });
+  ta.oninput = redraw;
+  const pickRow = texts.length > 1 ? h('div', {}, h('p', { class: 'sub' }, 'Page ka text chuno'), h('div', { class: 'chips' }, texts.map((t, i) => h('button', { class: 'chip', onclick: () => { ta.value = t.text; redraw(); } }, 'Text ' + (i + 1))))) : null;
+  const m = modal('Shayari card', h('div', {},
+    pickRow, ta,
+    h('p', { class: 'sub' }, 'Style'), chips(Object.fromEntries(Object.entries(CARDSTYLES).map(([k, v]) => [k, v.name])), style, (k) => { style = k; redraw(); }),
+    h('div', { class: 'cardprev' }, cv),
+    h('div', { class: 'row', style: { marginTop: '12px', gap: '10px' } },
+      h('button', { class: 'btn', onclick: () => cv.toBlob((b) => { const a = h('a', { href: URL.createObjectURL(b), download: 'shayari-card.png' }); document.body.append(a); a.click(); a.remove(); toast('Image download ho gayi'); }, 'image/png') }, 'Download'),
+      h('button', { class: 'btn sec', onclick: () => cv.toBlob(async (b) => { const f = new File([b], 'shayari-card.png', { type: 'image/png' }); if (navigator.canShare && navigator.canShare({ files: [f] })) { try { await navigator.share({ files: [f] }); } catch {} } else toast('Is browser me share nahi hai, download kar lo', 3500); }, 'image/png') }, 'Share'))));
+  setTimeout(redraw, 80);
+}
+
+/* ---- app lock ---- */
+const lockGet = () => { try { return JSON.parse(localStorage.getItem('applock') || 'null'); } catch { return null; } };
+async function sha256hex(str) { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str)); return [...new Uint8Array(b)].map((v) => v.toString(16).padStart(2, '0')).join(''); }
+const bioAvailable = async () => { try { return !!(window.PublicKeyCredential && await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()); } catch { return false; } };
+function lockScreen() {
+  const lk = lockGet();
+  const pw = h('input', { class: 'field', type: 'password', inputmode: 'numeric', placeholder: 'PIN', autocomplete: 'off' }), err = h('div', { class: 'err' });
+  const go = async () => { err.textContent = ''; if (await sha256hex(lk.s + pw.value) === lk.h) { sessionStorage.setItem('d_unlock', '1'); startOwner(); } else err.textContent = 'PIN galat hai.'; };
+  pw.onkeydown = (e) => e.key === 'Enter' && go();
+  const bioBtn = localStorage.getItem('applockCred') ? h('button', { class: 'btn sec', onclick: async () => {
+    try {
+      const id = b64ToU8(localStorage.getItem('applockCred'));
+      await navigator.credentials.get({ publicKey: { challenge: crypto.getRandomValues(new Uint8Array(32)), allowCredentials: [{ id, type: 'public-key' }], userVerification: 'required', timeout: 60000 } });
+      sessionStorage.setItem('d_unlock', '1'); startOwner();
+    } catch (e) { err.textContent = 'Fingerprint nahi chala, PIN se kholo.'; }
+  } }, 'Fingerprint / Face se kholo') : null;
+  root.replaceChildren(h('div', { class: 'gate' }, lockSeal(), h('h1', {}, 'Meri Dayri'), h('p', { class: 'muted' }, 'App lock laga hai'), pw, err, h('button', { class: 'btn', onclick: go }, 'Kholo'), bioBtn));
+  if (bioBtn && localStorage.getItem('applockAuto') === '1') setTimeout(() => bioBtn.click(), 350);
+}
+function setPinModal() {
+  const p1 = h('input', { class: 'field', type: 'password', inputmode: 'numeric', placeholder: 'Naya PIN (4-6 ank)' }), p2 = h('input', { class: 'field', type: 'password', inputmode: 'numeric', placeholder: 'PIN dobara' }), err = h('div', { class: 'err' });
+  const m = modal('PIN lock', h('div', {}, p1, p2, err, h('button', { class: 'btn', onclick: async () => {
+    if (!/^\d{4,6}$/.test(p1.value)) return err.textContent = 'PIN 4 se 6 ank ka rakho.';
+    if (p1.value !== p2.value) return err.textContent = 'Dono PIN same nahi hain.';
+    const salt = Math.random().toString(36).slice(2);
+    localStorage.setItem('applock', JSON.stringify({ s: salt, h: await sha256hex(salt + p1.value) }));
+    m.close(); toast('App lock lag gaya');
+    if (await bioAvailable()) addBio(); else openSettings(true);
+  } }, 'Lagao')));
+}
+async function addBio() {
+  if (!await bioAvailable()) { toast('Is browser me fingerprint lock nahi hai, PIN hi kaam karega', 4000); return openSettings(true); }
+  try {
+    const cred = await navigator.credentials.create({ publicKey: { challenge: crypto.getRandomValues(new Uint8Array(32)), rp: { name: 'Meri Dayri' }, user: { id: crypto.getRandomValues(new Uint8Array(16)), name: 'owner', displayName: 'Owner' }, pubKeyCredParams: [{ alg: -7, type: 'public-key' }, { alg: -257, type: 'public-key' }], authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required' }, timeout: 60000 } });
+    localStorage.setItem('applockCred', btoa(String.fromCharCode(...new Uint8Array(cred.rawId))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''));
+    localStorage.setItem('applockAuto', '1');
+    toast('Fingerprint lock jud gaya');
+  } catch (e) { toast('Fingerprint nahi juda'); }
+  openSettings(true);
+}
+function lockSection() {
+  const lk = lockGet();
+  if (!lk) return [h('p', { class: 'hint' }, 'Phone koi aur uthaye to dayri na khule. Har baar kholne par PIN, chahe to fingerprint/face bhi.'), h('button', { class: 'btn sec', onclick: setPinModal }, 'PIN lock lagao')];
+  return [h('p', { class: 'hint' }, 'App lock chalu hai. Har baar app kholne par PIN mangega (owner password ke alawa).'),
+    h('div', { class: 'row wrap' },
+      localStorage.getItem('applockCred') ? h('button', { class: 'btn sm sec', disabled: true }, 'Fingerprint juda hua ✓') : h('button', { class: 'btn sm sec', onclick: addBio }, 'Fingerprint jodo'),
+      h('button', { class: 'btn sm sec', onclick: () => { sessionStorage.removeItem('d_unlock'); lockScreen(); } }, 'Abhi lock karo'),
+      h('button', { class: 'btn sm danger', onclick: async () => { const p = prompt('Lock hatane ke liye PIN daalo'); if (!p) return; if (await sha256hex(lk.s + p) !== lk.h) return toast('PIN galat hai'); localStorage.removeItem('applock'); localStorage.removeItem('applockCred'); localStorage.removeItem('applockAuto'); toast('App lock hata diya'); openSettings(true); } }, 'Lock hatao'))];
+}
+
+/* ---- reminder ---- */
+function remindSection() {
+  const st = h('p', { class: 'muted' }, '…');
+  api('owner/push').then((r) => { st.textContent = r.on ? 'Chalu hai: har raat 9 baje notification aayegi, app band ho tab bhi.' : (localStorage.getItem('remindLocal') === '1' ? 'Chalu hai: app kholne par shaam ko yaad dilayega (is browser me push nahi).' : 'Band hai.'); }).catch(() => { st.textContent = ''; });
+  return [h('p', { class: 'hint' }, 'Agar aaj ka page nahi likha to raat 9 baje yaad.'), st,
+    h('div', { class: 'row wrap' },
+      h('button', { class: 'btn sm sec', onclick: enableReminder }, 'Yaad chalu karo'),
+      h('button', { class: 'btn sm sec', onclick: disableReminder }, 'Band karo'))];
+}
+async function enableReminder() {
+  try {
+    if (!('Notification' in window)) throw new Error('x');
+    if (await Notification.requestPermission() !== 'granted') throw new Error('x');
+    if (!navigator.serviceWorker) throw new Error('x');
+    const reg = await navigator.serviceWorker.ready;
+    if (!reg.pushManager) throw new Error('x');
+    const { key } = await api('owner/vapid');
+    const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToU8(key) });
+    await api('owner/push', 'POST', { sub: sub.toJSON() });
+    toast('Raat 9 baje ki yaad chalu ho gayi');
+  } catch (e) {
+    localStorage.setItem('remindLocal', '1');
+    toast('Is browser me push nahi chalta; app kholne par shaam ko yaad dilayenge', 4500);
+  }
+  openSettings(true);
+}
+async function disableReminder() {
+  localStorage.removeItem('remindLocal');
+  try { const reg = await navigator.serviceWorker.ready; const sub = await reg.pushManager.getSubscription(); if (sub) { await api('owner/push', 'DELETE', { endpoint: sub.endpoint }); await sub.unsubscribe(); } } catch {}
+  toast('Yaad band ho gayi'); openSettings(true);
+}
+function localRemindCheck() {
+  if (S.readonly || localStorage.getItem('remindLocal') !== '1') return;
+  const today = todayStrLocal();
+  if (new Date().getHours() < 19) return;
+  if (S.pages.some((p) => p.day === today)) return;
+  if (localStorage.getItem('remindDone') === today) return;
+  localStorage.setItem('remindDone', today);
+  if ('Notification' in window && Notification.permission === 'granted') new Notification('Meri Dayri', { body: 'Aaj ka page likhna baaki hai' });
+  else toast('Aaj ka page likhna baaki hai ✍️', 5000);
+}
+
+/* ---- backup / export ---- */
+const mediaIds = (items) => { const o = []; for (const it of items || []) for (const k of ['mid', 'cover']) if (it && typeof it[k] === 'string') o.push(it[k]); return o; };
+const crcTable = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c; } return t; })();
+const crc32 = (u8) => { let c = ~0; for (let i = 0; i < u8.length; i++) c = crcTable[(c ^ u8[i]) & 255] ^ (c >>> 8); return ~c >>> 0; };
+function zipStore(files) {
+  const enc = new TextEncoder(), parts = [], central = []; let off = 0;
+  for (const f of files) {
+    const name = enc.encode(f.name), crc = crc32(f.data), sz = f.data.length;
+    const lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint32(14, crc, true); lh.setUint32(18, sz, true); lh.setUint32(22, sz, true); lh.setUint16(26, name.length, true);
+    parts.push(new Uint8Array(lh.buffer), name, f.data);
+    const ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0, 0x02014b50, true); ch.setUint16(6, 20, true); ch.setUint32(16, crc, true); ch.setUint32(20, sz, true); ch.setUint32(24, sz, true); ch.setUint16(28, name.length, true); ch.setUint32(42, off, true);
+    central.push(new Uint8Array(ch.buffer), name);
+    off += 30 + name.length + sz;
+  }
+  const cSize = central.reduce((a, c) => a + c.length, 0);
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true); end.setUint32(12, cSize, true); end.setUint32(16, off, true);
+  return new Blob([...parts, ...central, new Uint8Array(end.buffer)], { type: 'application/zip' });
+}
+function backupSection() {
+  return [h('p', { class: 'hint' }, 'Saare pages + photos/videos/gaane ek ZIP file me download karo, ya PDF banao. Apne paas sambhal ke rakho.'),
+    h('div', { class: 'row wrap' },
+      h('button', { class: 'btn sm sec', onclick: doBackup }, 'Backup download (ZIP)'),
+      h('button', { class: 'btn sm sec', onclick: () => exportScreen() }, 'PDF / Print'))];
+}
+async function doBackup() {
+  try {
+    toast('Backup ban raha hai…', 60000);
+    const data = await api('owner/export');
+    const files = [{ name: 'dayri-data.json', data: new TextEncoder().encode(JSON.stringify(data, null, 2)) }];
+    const ids = [...new Set(data.pages.flatMap((p) => mediaIds(p.items)))];
+    let n = 0;
+    for (const id of ids) {
+      try {
+        const r = await fetch('/m/' + id, { credentials: 'same-origin' });
+        if (!r.ok) continue;
+        const mime = r.headers.get('content-type') || '';
+        const ext = mime.includes('png') ? '.png' : mime.includes('webm') ? '.webm' : mime.includes('mp4') ? '.mp4' : mime.startsWith('audio') ? '.mp3' : '.jpg';
+        files.push({ name: 'media/' + id + ext, data: new Uint8Array(await r.arrayBuffer()) });
+        toast(`Backup: ${++n}/${ids.length} files`, 60000);
+      } catch {}
+    }
+    const blob = zipStore(files);
+    const a = h('a', { href: URL.createObjectURL(blob), download: 'dayri-backup-' + todayStrLocal() + '.zip' }); document.body.append(a); a.click(); a.remove();
+    toast(`Backup taiyaar (${(blob.size / 1024 / 1024).toFixed(1)} MB, ${files.length - 1} media files)`, 5000);
+  } catch (e) { toast('Backup nahi bana: ' + e.message, 4000); }
+}
+function exportScreen() {
+  push({ v: 'export' });
+  const nowD = new Date();
+  const ranges = { all: 'Sab pages', year: 'Ye saal (' + nowD.getFullYear() + ')', month: 'Ye mahina' };
+  let range = 'all';
+  const box = h('div', { class: 'printpages' });
+  const draw = () => {
+    const ps = S.pages.filter((p) => { const d = parseDay(p.day); if (range === 'year') return d.getFullYear() === nowD.getFullYear(); if (range === 'month') return d.getFullYear() === nowD.getFullYear() && d.getMonth() === nowD.getMonth(); return true; }).sort((a, b) => (a.day < b.day ? -1 : 1));
+    box.replaceChildren(...(ps.length ? ps.map((p) => h('div', { class: 'printpage' }, renderSheet(p, {}))) : [h('p', { class: 'muted', style: { padding: '30px', textAlign: 'center' } }, 'Is range me koi page nahi.')]));
+  };
+  draw();
+  root.replaceChildren(h('div', { class: 'home exportscreen' },
+    topbar(iconBtn('back', () => history.back(), 'back'), h('div', { class: 'ttl' }, 'PDF / Print'), null),
+    h('div', { class: 'set noprint' }, h('p', { class: 'hint' }, 'Neeche pages taiyar hain. "Print karo" dabao aur destination me "Save as PDF" chuno.'), chips(ranges, range, (k) => { range = k; draw(); }), h('button', { class: 'btn printbtn', onclick: () => window.print() }, 'Print karo / PDF banao')),
+    box));
 }
 
 (function boot() {

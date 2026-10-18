@@ -127,6 +127,18 @@ async function viewerLink(req) {
 }
 function clean(s, n) { return String(s ?? '').slice(0, n); }
 
+
+async function vapidKeys() {
+  let j = await getSet('vapid');
+  if (j) { try { return JSON.parse(j); } catch {} }
+  const { publicKey, privateKey } = crypto.generateKeyPairSync('ec', { namedCurve: 'P-256' });
+  const pub = publicKey.export({ format: 'jwk' }), prv = privateKey.export({ format: 'jwk' });
+  // JWK export gives x/y/d base64url; VAPID public key is the uncompressed point (0x04 || x || y)
+  const pair = { publicKey: Buffer.concat([Buffer.from([4]), Buffer.from(pub.x, 'base64url'), Buffer.from(pub.y, 'base64url')]).toString('base64url'), privateKey: prv.d };
+  await setSet('vapid', JSON.stringify(pair));
+  return pair;
+}
+
 module.exports = async (req, res) => {
   try {
     // CSRF guard: state-changing requests must come from our own origin
@@ -280,7 +292,48 @@ module.exports = async (req, res) => {
         if (parts[2] && parts[3] === 'regenerate' && method === 'POST') { await q('UPDATE diary_links SET token=?, ver=ver+1, revoked=0 WHERE id=?', [rid(24), parts[2]]); return send(res, 200, { ok: true }); }
         if (parts[2] && method === 'DELETE') { await q('DELETE FROM diary_links WHERE id=?', [parts[2]]); return send(res, 200, { ok: true }); }
       }
+      if (parts[1] === 'export' && method === 'GET') {
+        const pg = await q('SELECT * FROM diary_pages ORDER BY day ASC, created_at ASC');
+        return send(res, 200, { name: (await getSet('name')) || 'Meri Dayri', exportedAt: now(), settings: { theme: (await getSet('theme')) || 'auto', paper: (await getSet('paper')) || 'lined' }, pages: pg.map(pageOut) });
+      }
+      if (parts[1] === 'vapid' && method === 'GET') { const vk = await vapidKeys(); return send(res, 200, { key: vk.publicKey }); }
+      if (parts[1] === 'push') {
+        if (method === 'GET') { const r = await q('SELECT COUNT(*) AS c FROM diary_push'); return send(res, 200, { on: Number(r[0].c) > 0 }); }
+        if (method === 'POST') {
+          const sub = body.sub || {};
+          const ep = clean(sub.endpoint, 700), auth = clean(sub.keys && sub.keys.auth, 100), p256 = clean(sub.keys && sub.keys.p256dh, 200);
+          if (!ep.startsWith('https://') || !auth || !p256) return send(res, 400, { error: 'Subscription sahi nahi hai.' });
+          await q('DELETE FROM diary_push WHERE endpoint = ?', [ep]);
+          await q('INSERT INTO diary_push (endpoint, p256dh, auth, created_at) VALUES (?,?,?,?)', [ep, p256, auth, now()]);
+          return send(res, 200, { ok: true });
+        }
+        if (method === 'DELETE') { await q('DELETE FROM diary_push WHERE endpoint = ?', [clean(body.endpoint, 700)]); return send(res, 200, { ok: true }); }
+      }
       return send(res, 404, { error: 'not found' });
+    }
+
+    // ---------- nightly reminder cron (Vercel, once a day) ----------
+    if (parts[0] === 'cron' && parts[1] === 'remind') {
+      const last = Number(await getSet('last_remind') || 0);
+      if (now() - last < 20 * 3600 * 1000) return send(res, 200, { ok: true, skipped: 'recent' });
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+      const wrote = await q('SELECT id FROM diary_pages WHERE day = ? LIMIT 1', [today]);
+      const subs = await q('SELECT * FROM diary_push');
+      if (!subs.length) return send(res, 200, { ok: true, skipped: 'no-subscription' });
+      if (wrote.length) { await setSet('last_remind', now()); return send(res, 200, { ok: true, skipped: 'written-today' }); }
+      let wp;
+      try { wp = require('web-push'); } catch (e) { return send(res, 500, { error: 'web-push not installed' }); }
+      const vk = await vapidKeys();
+      wp.setVapidDetails('mailto:diary@localhost', vk.publicKey, vk.privateKey);
+      let sent = 0;
+      for (const sub of subs) {
+        try {
+          await wp.sendNotification({ endpoint: sub.endpoint, keys: { auth: sub.auth, p256dh: sub.p256dh } }, JSON.stringify({ title: 'Meri Dayri', body: 'Aaj ka page likhna baaki hai', url: '/owner' }));
+          sent++;
+        } catch (e) { if (e.statusCode === 404 || e.statusCode === 410) await q('DELETE FROM diary_push WHERE endpoint = ?', [sub.endpoint]); }
+      }
+      await setSet('last_remind', now());
+      return send(res, 200, { ok: true, sent });
     }
 
     // ---------- viewer ----------

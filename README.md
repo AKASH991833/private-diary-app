@@ -7,6 +7,14 @@ A personal diary website you write in yourself, and share read-only with only th
 - **Media**: upload photos (shrunk in the browser), a short video (10-20s, converted in the browser to a small muted looping clip) and your own song (audio file). Stored in your own database, about 14 MB per file.
 - **Settings**: light/dark/auto theme, default paper, diary name, change password, share links, storage and cleanup.
 - **Private share links**: each person gets a long unguessable link plus a passcode and can read only pages marked *Shared*.
+- **Mood tracker**: har page ka mood, monthly mood calendar + graph.
+- **App lock**: PIN lock (har baar app kholne par), fingerprint/face unlock jahan browser support kare.
+- **Shayari card**: kisi bhi text ko styled card bana kar image (PNG) download ya share.
+- **Nightly reminder**: raat 9 baje push notification agar aaj ka page nahi likha (Vercel cron, free).
+- **Search + tags**: pages me shabd, tag ya date se khojo.
+- **On this day**: pichle saal aaj ke din ke pages home par.
+- **Backup / Export**: sab pages + media ek ZIP me, ya print se PDF.
+- **Session-only login**: owner password har baar tab/app band karne par dobara mangta hai.
 - **Free to host**: Vercel Hobby + TiDB Cloud Serverless free tier. No card needed.
 
 > Screenshots use made-up sample content. No real diary content is in this repo.
