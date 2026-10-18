@@ -5,9 +5,9 @@ const http = require('http'), fs = require('fs'), path = require('path');
 const api = require('./api/index.js');
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.ttf': 'font/ttf', '.svg': 'image/svg+xml', '.txt': 'text/plain', '.png': 'image/png' };
 http.createServer((req, res) => {
-  if (req.url.startsWith('/api/')) {
+  if (req.url.startsWith('/api/') || req.url.startsWith('/m/')) {
     let b = ''; req.on('data', (c) => (b += c));
-    req.on('end', () => { try { req.body = b ? JSON.parse(b) : {}; } catch { req.body = {}; } api(req, res); });
+    req.on('end', () => { if (req.url.startsWith('/m/')) { req.body = {}; return api(req, res); } try { req.body = b ? JSON.parse(b) : {}; } catch { req.body = {}; } api(req, res); });
     return;
   }
   let p = req.url.split('?')[0];

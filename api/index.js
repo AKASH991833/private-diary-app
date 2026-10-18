@@ -72,6 +72,52 @@ async function isOwner(req) {
 const entryOut = (e) => ({ id: e.id, title: e.title, body: e.body, mood: e.mood, font: e.font, shared: !!Number(e.shared), at: Number(e.entry_at), updated: Number(e.updated_at) });
 const linkOut = (l, origin) => ({ id: l.id, label: l.label, url: `${origin}/r/${l.token}`, revoked: !!Number(l.revoked), created: Number(l.created_at), lastOpened: Number(l.last_opened) });
 
+async function getSet(k) { const r = await q('SELECT v FROM diary_settings WHERE k = ?', [k]); return r.length ? r[0].v : null; }
+async function setSet(k, v) { await q('DELETE FROM diary_settings WHERE k = ?', [k]); await q('INSERT INTO diary_settings (k, v) VALUES (?, ?)', [k, String(v)]); }
+async function checkOwnerPassword(pw) {
+  const salt = await getSet('pw_salt'), hash = await getSet('pw_hash');
+  if (salt && hash) return safeEq(scrypt(pw, salt), hash);
+  const expected = process.env.OWNER_PASSWORD || '';
+  return !!expected && safeEq(sha(pw), sha(expected));
+}
+const MIMES = { 'image/jpeg': 'image', 'image/png': 'image', 'image/webp': 'image', 'image/gif': 'image', 'video/mp4': 'video', 'video/webm': 'video', 'audio/mpeg': 'audio', 'audio/mp4': 'audio', 'audio/aac': 'audio', 'audio/ogg': 'audio', 'audio/wav': 'audio', 'audio/webm': 'audio', 'audio/x-m4a': 'audio' };
+const MAX_MEDIA = 14 * 1024 * 1024;
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const PAPERS = ['lined', 'dots', 'grid', 'plain'];
+const pageOut = (p) => { let items = []; try { items = JSON.parse(p.items); } catch {} return { id: p.id, day: p.day, title: p.title, paper: p.paper, h: Number(p.h), items, shared: !!Number(p.shared), updated: Number(p.updated_at) }; };
+function mediaIds(items) { const o = []; for (const it of items || []) { for (const k of ['mid', 'cover']) if (it && typeof it[k] === 'string') o.push(it[k]); } return o; }
+async function serveMedia(req, res, id, allowed) {
+  const m = await q('SELECT * FROM diary_media WHERE id = ?', [clean(id, 24)]);
+  if (!m.length || !allowed(m[0])) { res.statusCode = 404; return res.end('not found'); }
+  const rows = await q('SELECT data FROM diary_chunks WHERE media_id = ? ORDER BY n', [m[0].id]);
+  const buf = Buffer.concat(rows.map((r) => Buffer.from(r.data)));
+  const total = buf.length;
+  res.setHeader('Content-Type', m[0].mime);
+  res.setHeader('Accept-Ranges', 'bytes');
+  res.setHeader('Cache-Control', 'private, max-age=86400');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  const rg = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
+  if (rg && (rg[1] || rg[2])) {
+    let a = rg[1] ? Number(rg[1]) : Math.max(0, total - Number(rg[2])), b = rg[1] && rg[2] ? Number(rg[2]) : total - 1;
+    b = Math.min(b, total - 1);
+    if (a > b) { res.statusCode = 416; res.setHeader('Content-Range', `bytes */${total}`); return res.end(); }
+    res.statusCode = 206; res.setHeader('Content-Range', `bytes ${a}-${b}/${total}`); res.setHeader('Content-Length', b - a + 1);
+    return res.end(buf.subarray(a, b + 1));
+  }
+  res.statusCode = 200; res.setHeader('Content-Length', total);
+  return res.end(buf);
+}
+async function viewerLink(req) {
+  const c = cookies(req);
+  for (const name of Object.keys(c)) {
+    if (!name.startsWith('v_')) continue;
+    const p = await verify(c[name]);
+    if (!p || p.role !== 'viewer') continue;
+    const r = await q('SELECT * FROM diary_links WHERE id = ?', [p.l]);
+    if (r.length && !Number(r[0].revoked) && Number(r[0].ver) === p.v) return r[0];
+  }
+  return null;
+}
 function clean(s, n) { return String(s ?? '').slice(0, n); }
 
 module.exports = async (req, res) => {
@@ -90,14 +136,23 @@ module.exports = async (req, res) => {
     const proto = process.env.LOCAL_DB ? 'http' : 'https';
     const origin = `${proto}://${host}`;
 
+    // ---------- media (served at /m/:id) ----------
+    if (url.pathname.startsWith('/m/')) {
+      const id = url.pathname.slice(3);
+      if (await isOwner(req)) return serveMedia(req, res, id, () => true);
+      const link = await viewerLink(req);
+      if (!link) { res.statusCode = 401; return res.end('locked'); }
+      const shared = await q('SELECT items FROM diary_pages WHERE shared = 1');
+      return serveMedia(req, res, id, (m) => shared.some((p) => p.items.includes(m.id)));
+    }
     // ---------- owner ----------
     if (parts[0] === 'owner') {
       if (parts[1] === 'login' && method === 'POST') {
         const key = 'owner:' + ip(req);
         const wait = await guard(key);
         if (wait) return send(res, 429, { error: `Bahut galat try. ${wait} min baad try karo.` });
-        const expected = process.env.OWNER_PASSWORD || '';
-        if (!expected || !safeEq(sha(String(body.password || '')), sha(expected))) { await fail(key); return send(res, 401, { error: 'Password galat hai.' }); }
+        const okPw = await checkOwnerPassword(String(body.password || ''));
+        if (!okPw) { await fail(key); return send(res, 401, { error: 'Password galat hai.' }); }
         await okReset(key);
         setCookie(res, 'od', await sign({ role: 'owner', exp: now() + COOKIE_DAYS_OWNER * 86400000 }), COOKIE_DAYS_OWNER);
         return send(res, 200, { ok: true });
@@ -106,6 +161,78 @@ module.exports = async (req, res) => {
       if (parts[1] === 'me') return send(res, 200, { owner: await isOwner(req) });
       if (!(await isOwner(req))) return send(res, 401, { error: 'login karo' });
 
+      if (parts[1] === 'settings') {
+        if (method === 'GET') return send(res, 200, { name: (await getSet('name')) || 'Meri Dayri', theme: (await getSet('theme')) || 'auto', paper: (await getSet('paper')) || 'lined' });
+        if (method === 'POST') {
+          if (body.name !== undefined) await setSet('name', clean(body.name, 40) || 'Meri Dayri');
+          if (['auto', 'light', 'dark'].includes(body.theme)) await setSet('theme', body.theme);
+          if (PAPERS.includes(body.paper)) await setSet('paper', body.paper);
+          return send(res, 200, { ok: true });
+        }
+      }
+      if (parts[1] === 'password' && method === 'POST') {
+        const key = 'pw:' + ip(req);
+        const wait = await guard(key);
+        if (wait) return send(res, 429, { error: `Bahut galat try. ${wait} min baad try karo.` });
+        if (!(await checkOwnerPassword(String(body.current || '')))) { await fail(key); return send(res, 401, { error: 'Purana password galat hai.' }); }
+        const np = String(body.next || '');
+        if (np.length < 8 || np.length > 64) return send(res, 400, { error: 'Naya password 8 se 64 akshar ka rakho.' });
+        await okReset(key);
+        const salt = rid(12);
+        await setSet('pw_salt', salt); await setSet('pw_hash', scrypt(np, salt));
+        await setSet('session_secret', crypto.randomBytes(32).toString('hex')); // logs out every device, including viewers
+        setCookie(res, 'od', await sign({ role: 'owner', exp: now() + COOKIE_DAYS_OWNER * 86400000 }), COOKIE_DAYS_OWNER);
+        return send(res, 200, { ok: true });
+      }
+      if (parts[1] === 'pages') {
+        if (method === 'GET' && !parts[2]) {
+          const r = await q('SELECT * FROM diary_pages ORDER BY day DESC, created_at DESC');
+          return send(res, 200, { pages: r.map(pageOut) });
+        }
+        if (method === 'POST' && !parts[2]) {
+          const id = body.id && /^[\w-]{6,24}$/.test(body.id) ? body.id : rid();
+          const items = Array.isArray(body.items) ? body.items.slice(0, 300) : [];
+          const json = JSON.stringify(items);
+          if (json.length > 600000) return send(res, 413, { error: 'Page bahut bhari ho gayi.' });
+          const day = DAY.test(body.day || '') ? body.day : new Date().toISOString().slice(0, 10);
+          const rec = [day, clean(body.title, 200), PAPERS.includes(body.paper) ? body.paper : 'lined', Math.min(6000, Math.max(700, Number(body.h) || 844)), json, body.shared ? 1 : 0, now()];
+          const ex = await q('SELECT id FROM diary_pages WHERE id = ?', [id]);
+          if (ex.length) await q('UPDATE diary_pages SET day=?, title=?, paper=?, h=?, items=?, shared=?, updated_at=? WHERE id=?', [...rec, id]);
+          else await q('INSERT INTO diary_pages (day, title, paper, h, items, shared, updated_at, created_at, id) VALUES (?,?,?,?,?,?,?,?,?)', [...rec, now(), id]);
+          return send(res, 200, { ok: true, id });
+        }
+        if (method === 'DELETE' && parts[2]) { await q('DELETE FROM diary_pages WHERE id = ?', [parts[2]]); return send(res, 200, { ok: true }); }
+      }
+      if (parts[1] === 'media') {
+        if (method === 'POST' && !parts[2]) {
+          const mime = String(body.mime || '').split(';')[0].toLowerCase();
+          if (!MIMES[mime]) return send(res, 400, { error: 'Ye file type allowed nahi hai.' });
+          if (!(Number(body.size) > 0) || Number(body.size) > MAX_MEDIA) return send(res, 413, { error: 'File 14 MB se chhoti honi chahiye.' });
+          const id = rid();
+          await q('INSERT INTO diary_media (id, kind, mime, name, size, chunks, created_at) VALUES (?,?,?,?,?,?,?)', [id, MIMES[mime], mime, clean(body.name, 120), Number(body.size), 0, now()]);
+          return send(res, 200, { ok: true, id });
+        }
+        if (method === 'POST' && parts[2] && parts[3] === 'chunk') {
+          const m = await q('SELECT * FROM diary_media WHERE id = ?', [parts[2]]);
+          if (!m.length) return send(res, 404, { error: 'not found' });
+          const n = Number(body.n), data = Buffer.from(String(body.b64 || ''), 'base64');
+          if (!(n >= 0 && n < 8) || !data.length || data.length > 3 * 1024 * 1024) return send(res, 400, { error: 'bad chunk' });
+          await q('DELETE FROM diary_chunks WHERE media_id = ? AND n = ?', [parts[2], n]);
+          await q('INSERT INTO diary_chunks (media_id, n, data) VALUES (?,?,?)', [parts[2], n, data]);
+          await q('UPDATE diary_media SET chunks = ? WHERE id = ?', [Math.max(Number(m[0].chunks), n + 1), parts[2]]);
+          return send(res, 200, { ok: true });
+        }
+        if (method === 'DELETE' && parts[2]) { await q('DELETE FROM diary_chunks WHERE media_id = ?', [parts[2]]); await q('DELETE FROM diary_media WHERE id = ?', [parts[2]]); return send(res, 200, { ok: true }); }
+      }
+      if (parts[1] === 'storage') {
+        if (method === 'GET') { const r = await q('SELECT COALESCE(SUM(size),0) AS s, COUNT(*) AS c FROM diary_media'); return send(res, 200, { bytes: Number(r[0].s), files: Number(r[0].c) }); }
+        if (method === 'POST') { // remove files no page uses
+          const pg = await q('SELECT items FROM diary_pages'); const used = pg.map((p) => p.items).join('');
+          const all = await q('SELECT id FROM diary_media'); let n = 0;
+          for (const m of all) if (!used.includes(m.id)) { await q('DELETE FROM diary_chunks WHERE media_id = ?', [m.id]); await q('DELETE FROM diary_media WHERE id = ?', [m.id]); n++; }
+          return send(res, 200, { ok: true, removed: n });
+        }
+      }
       if (parts[1] === 'entries') {
         if (method === 'GET' && !parts[2]) {
           const r = await q('SELECT * FROM diary_entries ORDER BY entry_at DESC');
@@ -170,6 +297,11 @@ module.exports = async (req, res) => {
       }
       const p = await verify(cookies(req)[cname]);
       if (!p || p.role !== 'viewer' || p.l !== link.id || p.v !== Number(link.ver)) return send(res, 401, { error: 'locked' });
+      if (parts[2] === 'pages') {
+        const r = await q('SELECT * FROM diary_pages WHERE shared = 1 ORDER BY day ASC, created_at ASC');
+        const s2 = await getSet('name');
+        return send(res, 200, { name: s2 || 'Meri Dayri', pages: r.map(pageOut).map(({ shared, ...p }) => p) });
+      }
       if (parts[2] === 'entries') {
         const r = await q('SELECT * FROM diary_entries WHERE shared = 1 ORDER BY entry_at ASC');
         return send(res, 200, { entries: r.map(entryOut).map(({ shared, ...e }) => e) });
