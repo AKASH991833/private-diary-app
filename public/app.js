@@ -555,7 +555,7 @@ async function openSettings(noPush) {
         h('button', { class: 'btn sm danger', onclick: async () => { if (!confirm('Ye link hamesha ke liye delete?')) return; await api('owner/links/' + l.id, 'DELETE'); reload(); } }, 'Delete'))));
     const ll = h('input', { class: 'field', placeholder: 'Kiske liye (naam)' }), lp = h('input', { class: 'field', placeholder: 'Passcode (4+ akshar)' });
     box.replaceChildren(
-      installSection(), h('h3', {}, 'Dikhawa'), h('p', { class: 'sub' }, 'Theme'), chips({ auto: 'Auto', light: 'Light', dark: 'Dark' }, localStorage.getItem('theme') || 'auto', (k) => { applyTheme(k); api('owner/settings', 'POST', { theme: k }); }),
+      ...installSection(), h("h3", {}, "Dikhawa"), h('p', { class: 'sub' }, 'Theme'), chips({ auto: 'Auto', light: 'Light', dark: 'Dark' }, localStorage.getItem('theme') || 'auto', (k) => { applyTheme(k); api('owner/settings', 'POST', { theme: k }); }),
       h('p', { class: 'sub' }, 'Naye page ka paper'), chips({ lined: 'Lined', dots: 'Dotted', grid: 'Grid', plain: 'Plain' }, st.paper, (k) => { S.settings.paper = k; api('owner/settings', 'POST', { paper: k }); }),
       h('p', { class: 'sub' }, 'Dayri ka naam'), nm,
       h('h3', {}, 'Password'), h('p', { class: 'hint' }, 'Password badalne par saare devices aur share links ke log dobara login karenge.'), cp, np,

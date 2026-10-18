@@ -52,3 +52,8 @@ Static HTML/CSS/JS front end, one Node serverless function (`api/index.js`), MyS
 ## License
 
 MIT
+
+## Install as an app
+
+- Owner: open `/owner` in Chrome (Android) and tap Install, or in Safari (iPhone) Share > Add to Home Screen. The home screen also shows an Install button.
+- Android APK: see the `v1.0.0-android` release (a thin WebView wrapper that opens the owner page).
