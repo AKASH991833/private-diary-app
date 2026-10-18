@@ -42,6 +42,12 @@ function setCookie(res, name, val, days) {
   const prev = res.getHeader('Set-Cookie') || [];
   res.setHeader('Set-Cookie', [].concat(prev, c));
 }
+// Owner login: session cookie, no Max-Age - ends when the tab/app is closed.
+function setSessionCookie(res, name, val) {
+  const c = `${name}=${val}; Path=/; HttpOnly; SameSite=Strict${process.env.LOCAL_DB ? '' : '; Secure'}`;
+  const prev = res.getHeader('Set-Cookie') || [];
+  res.setHeader('Set-Cookie', [].concat(prev, c));
+}
 const clearCookie = (res, name) => setCookie(res, name, '', 0);
 function send(res, code, obj) {
   res.statusCode = code;
@@ -84,7 +90,8 @@ const MIMES = { 'image/jpeg': 'image', 'image/png': 'image', 'image/webp': 'imag
 const MAX_MEDIA = 14 * 1024 * 1024;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const PAPERS = ['lined', 'dots', 'grid', 'plain'];
-const pageOut = (p) => { let items = []; try { items = JSON.parse(p.items); } catch {} return { id: p.id, day: p.day, title: p.title, paper: p.paper, h: Number(p.h), items, shared: !!Number(p.shared), updated: Number(p.updated_at) }; };
+const parseTags = (t) => { try { const a = JSON.parse(t || '[]'); return Array.isArray(a) ? a.filter((x) => typeof x === 'string').slice(0, 12) : []; } catch { return []; } };
+const pageOut = (p) => { let items = []; try { items = JSON.parse(p.items); } catch {} return { id: p.id, day: p.day, title: p.title, paper: p.paper, h: Number(p.h), items, shared: !!Number(p.shared), mood: p.mood || '', tags: parseTags(p.tags), updated: Number(p.updated_at) }; };
 function mediaIds(items) { const o = []; for (const it of items || []) { for (const k of ['mid', 'cover']) if (it && typeof it[k] === 'string') o.push(it[k]); } return o; }
 async function serveMedia(req, res, id, allowed) {
   const m = await q('SELECT * FROM diary_media WHERE id = ?', [clean(id, 24)]);
@@ -154,7 +161,7 @@ module.exports = async (req, res) => {
         const okPw = await checkOwnerPassword(String(body.password || ''));
         if (!okPw) { await fail(key); return send(res, 401, { error: 'Password galat hai.' }); }
         await okReset(key);
-        setCookie(res, 'od', await sign({ role: 'owner', exp: now() + COOKIE_DAYS_OWNER * 86400000 }), COOKIE_DAYS_OWNER);
+        setSessionCookie(res, 'od', await sign({ role: 'owner', exp: now() + COOKIE_DAYS_OWNER * 86400000 }));
         return send(res, 200, { ok: true });
       }
       if (parts[1] === 'logout') { clearCookie(res, 'od'); return send(res, 200, { ok: true }); }
@@ -181,7 +188,7 @@ module.exports = async (req, res) => {
         const salt = rid(12);
         await setSet('pw_salt', salt); await setSet('pw_hash', scrypt(np, salt));
         await setSet('session_secret', crypto.randomBytes(32).toString('hex')); // logs out every device, including viewers
-        setCookie(res, 'od', await sign({ role: 'owner', exp: now() + COOKIE_DAYS_OWNER * 86400000 }), COOKIE_DAYS_OWNER);
+        setSessionCookie(res, 'od', await sign({ role: 'owner', exp: now() + COOKIE_DAYS_OWNER * 86400000 }));
         return send(res, 200, { ok: true });
       }
       if (parts[1] === 'pages') {
@@ -195,10 +202,12 @@ module.exports = async (req, res) => {
           const json = JSON.stringify(items);
           if (json.length > 600000) return send(res, 413, { error: 'Page bahut bhari ho gayi.' });
           const day = DAY.test(body.day || '') ? body.day : new Date().toISOString().slice(0, 10);
-          const rec = [day, clean(body.title, 200), PAPERS.includes(body.paper) ? body.paper : 'lined', Math.min(6000, Math.max(700, Number(body.h) || 844)), json, body.shared ? 1 : 0, now()];
+          const mood = MOODS.includes(body.mood) ? body.mood : '';
+          const tags = JSON.stringify((Array.isArray(body.tags) ? body.tags : []).map((t) => clean(String(t).replace(/^#+/, '').trim(), 24)).filter(Boolean).slice(0, 12));
+          const rec = [day, clean(body.title, 200), PAPERS.includes(body.paper) ? body.paper : 'lined', Math.min(6000, Math.max(700, Number(body.h) || 844)), json, body.shared ? 1 : 0, mood, tags, now()];
           const ex = await q('SELECT id FROM diary_pages WHERE id = ?', [id]);
-          if (ex.length) await q('UPDATE diary_pages SET day=?, title=?, paper=?, h=?, items=?, shared=?, updated_at=? WHERE id=?', [...rec, id]);
-          else await q('INSERT INTO diary_pages (day, title, paper, h, items, shared, updated_at, created_at, id) VALUES (?,?,?,?,?,?,?,?,?)', [...rec, now(), id]);
+          if (ex.length) await q('UPDATE diary_pages SET day=?, title=?, paper=?, h=?, items=?, shared=?, mood=?, tags=?, updated_at=? WHERE id=?', [...rec, id]);
+          else await q('INSERT INTO diary_pages (day, title, paper, h, items, shared, mood, tags, updated_at, created_at, id) VALUES (?,?,?,?,?,?,?,?,?,?,?)', [...rec, now(), id]);
           return send(res, 200, { ok: true, id });
         }
         if (method === 'DELETE' && parts[2]) { await q('DELETE FROM diary_pages WHERE id = ?', [parts[2]]); return send(res, 200, { ok: true }); }

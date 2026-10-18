@@ -446,11 +446,12 @@ const lockSeal = () => h('div', { class: 'seal', html: IC.lock });
 function gateOwner() {
   S.mode = 'gate'; document.title = 'Diary';
   const pw = h('input', { class: 'field', type: 'password', placeholder: 'Password', autocomplete: 'current-password' }), err = h('div', { class: 'err' });
-  const go = async () => { err.textContent = ''; try { await api('owner/login', 'POST', { password: pw.value }); startOwner(); } catch (e) { err.textContent = e.message; } };
+  const go = async () => { err.textContent = ''; try { await api('owner/login', 'POST', { password: pw.value }); sessionStorage.setItem('d_alive', '1'); startOwner(); } catch (e) { err.textContent = e.message; } };
   pw.onkeydown = (e) => e.key === 'Enter' && go();
   root.replaceChildren(h('div', { class: 'gate' }, lockSeal(), h('h1', {}, 'Meri Dayri'), h('p', { class: 'muted' }, 'Sirf owner ke liye'), pw, err, h('button', { class: 'btn', onclick: go }, 'Kholo')));
 }
 async function startOwner() {
+  if (!sessionStorage.getItem('d_alive')) { try { await api('owner/logout', 'POST'); } catch {} return gateOwner(); }
   const me = await api('owner/me').catch(() => ({ owner: false }));
   if (!me.owner) return gateOwner();
   const [pg, st] = await Promise.all([api('owner/pages'), api('owner/settings')]);
@@ -565,7 +566,7 @@ async function openSettings(noPush) {
       h('div', { class: 'newlink' }, ll, lp, h('button', { class: 'btn', onclick: async () => { try { await api('owner/links', 'POST', { label: ll.value, passcode: lp.value }); toast('Naya link ban gaya'); reload(); } catch (e) { toast(e.message); } } }, 'Naya share link banao')),
       h('h3', {}, 'Storage'), h('p', { class: 'muted' }, `${(sg.bytes / 1024 / 1024).toFixed(1)} MB use hua, ${sg.files} files (free limit lagbhag 1 GB).`),
       h('button', { class: 'btn sec', onclick: async () => { const r = await api('owner/storage', 'POST'); toast(`${r.removed} bekaar file hata di`); } }, 'Bekaar files saaf karo'),
-      h('h3', {}, 'Account'), h('button', { class: 'btn sec', onclick: async () => { await api('owner/logout', 'POST'); gateOwner(); } }, 'Logout'));
+      h('h3', {}, 'Account'), h('button', { class: 'btn sec', onclick: async () => { sessionStorage.removeItem('d_alive'); await api('owner/logout', 'POST'); gateOwner(); } }, 'Logout'));
   };
   draw();
   root.replaceChildren(h('div', { class: 'home settings' }, topbar(iconBtn('back', () => history.back(), 'back'), h('div', { class: 'ttl' }, 'Settings'), null), box));

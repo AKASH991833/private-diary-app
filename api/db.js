@@ -36,10 +36,19 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS diary_media (id VARCHAR(24) PRIMARY KEY, kind VARCHAR(10) NOT NULL, mime VARCHAR(40) NOT NULL, name VARCHAR(120) NOT NULL, size BIGINT NOT NULL, chunks INT NOT NULL, created_at BIGINT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS diary_chunks (media_id VARCHAR(24) NOT NULL, n INT NOT NULL, data LONGBLOB NOT NULL, PRIMARY KEY (media_id, n))`,
   `CREATE TABLE IF NOT EXISTS diary_attempts (k VARCHAR(120) PRIMARY KEY, n INT NOT NULL, until_at BIGINT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS diary_push (endpoint VARCHAR(700) PRIMARY KEY, p256dh VARCHAR(200) NOT NULL, auth VARCHAR(100) NOT NULL, created_at BIGINT NOT NULL)`,
+];
+// Add new columns to old databases without touching existing rows.
+const MIGRATIONS = [
+  "ALTER TABLE diary_pages ADD COLUMN mood VARCHAR(20) NOT NULL DEFAULT ''",
+  "ALTER TABLE diary_pages ADD COLUMN tags VARCHAR(500) NOT NULL DEFAULT ''",
 ];
 async function q(sql, params = []) {
   const p = await raw();
-  if (!ready) { ready = (async () => { for (const s of SCHEMA) await p.query(s); })(); }
+  if (!ready) { ready = (async () => {
+    for (const s of SCHEMA) await p.query(s);
+    for (const m of MIGRATIONS) { try { await p.query(m); } catch (e) { /* column already there */ } }
+  })(); }
   await ready;
   const [rows] = await p.query(sql, params);
   return rows;
