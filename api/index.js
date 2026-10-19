@@ -93,7 +93,7 @@ const MAX_MEDIA = 14 * 1024 * 1024;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const PAPERS = ['lined', 'dots', 'grid', 'plain'];
 const parseTags = (t) => { try { const a = JSON.parse(t || '[]'); return Array.isArray(a) ? a.filter((x) => typeof x === 'string').slice(0, 12) : []; } catch { return []; } };
-const pageOut = (p) => { let items = []; try { items = JSON.parse(p.items); } catch {} return { id: p.id, day: p.day, title: p.title, paper: p.paper, h: Number(p.h), items, shared: !!Number(p.shared), mood: p.mood || '', tags: parseTags(p.tags), updated: Number(p.updated_at) }; };
+const pageOut = (p) => { let items = []; try { items = JSON.parse(p.items); } catch {} return { id: p.id, day: p.day, title: p.title, paper: p.paper, h: Number(p.h), items, shared: !!Number(p.shared), mood: p.mood || '', tags: parseTags(p.tags), pinned: !!Number(p.pinned || 0), updated: Number(p.updated_at) }; };
 function mediaIds(items) { const o = []; for (const it of items || []) { for (const k of ['mid', 'cover']) if (it && typeof it[k] === 'string') o.push(it[k]); } return o; }
 async function serveMedia(req, res, id, allowed) {
   const m = await q('SELECT * FROM diary_media WHERE id = ?', [clean(id, 24)]);
@@ -242,6 +242,12 @@ module.exports = async (req, res) => {
           return send(res, 200, { ok: true, id });
         }
         if (method === 'DELETE' && parts[2]) { await q('DELETE FROM diary_pages WHERE id = ?', [parts[2]]); return send(res, 200, { ok: true }); }
+      }
+      if (parts[1] === 'pin' && method === 'POST') {
+        const id = clean(body.id, 24);
+        await q('UPDATE diary_pages SET pinned = 1 - pinned WHERE id = ?', [id]);
+        const r = await q('SELECT pinned FROM diary_pages WHERE id = ?', [id]);
+        return send(res, 200, { ok: true, pinned: r.length ? !!Number(r[0].pinned) : false });
       }
       if (parts[1] === 'media') {
         if (method === 'POST' && !parts[2]) {

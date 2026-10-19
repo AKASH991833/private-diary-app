@@ -41,6 +41,7 @@ const SCHEMA = [
 // Add new columns to old databases without touching existing rows.
 const MIGRATIONS = [
   "ALTER TABLE diary_pages ADD COLUMN mood VARCHAR(20) NOT NULL DEFAULT ''",
+  "ALTER TABLE diary_pages ADD COLUMN pinned INT NOT NULL DEFAULT 0",
   "ALTER TABLE diary_pages ADD COLUMN tags VARCHAR(500) NOT NULL DEFAULT ''",
 ];
 async function q(sql, params = []) {

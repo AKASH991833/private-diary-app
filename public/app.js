@@ -281,9 +281,10 @@ function editor(page, ctx) {
   const ed = { sel: null, page };
   const status = h('span', { class: 'st' }, 'Saved ✓');
   let saveT;
+  const wc = () => { let n = 0; for (const it of page.items || []) { if (it.t === 'text' && it.text) n += it.text.trim().split(/\s+/).filter(Boolean).length; } return n; };
   const save = async () => {
     status.textContent = 'Saving…';
-    try { await api('owner/pages', 'POST', page); status.textContent = 'Saved ✓'; }
+    try { await api('owner/pages', 'POST', page); status.textContent = 'Saved ✓ · ' + wc() + ' shabd'; }
     catch (e) { status.textContent = 'Save nahi hua, retry…'; clearTimeout(saveT); saveT = setTimeout(save, 4000); }
   };
   ed.changed = () => { status.textContent = '…'; clearTimeout(saveT); saveT = setTimeout(save, 700); };
@@ -310,7 +311,7 @@ function editor(page, ctx) {
     if (!it) {
       bar.append(
         btn('photo', 'Photo', () => addPhotos(ed)),
-        btn('text', 'Text', () => { const n = ed.add({ t: 'text', text: 'Yahan likho…', font: 'kalam', size: 20, w: 220, color: 'auto', align: 'left', r: 0 }); textModal(n, ed); }),
+        btn('text', 'Text', () => { const n = ed.add({ t: 'text', text: '', font: 'kalam', size: 20, w: 220, color: 'auto', align: 'left', r: 0 }); textModal(n, ed); }),
         btn('sticker', 'Sticker', () => stickerModal(ed)), btn('video', 'Video', () => addVideo(ed)), btn('music', 'Music', () => musicModal(null, ed)),
         btn('note', 'Note', () => { const n = ed.add({ t: 'note', title: 'To-do list', lines: 'Pehli baat\nDusri baat', w: 170, r: -2 }); noteModal(n, ed); }),
         btn('label', 'Label', () => { const n = ed.add({ t: 'label', text: 'simplicity', r: -1 }); textModal(n, ed); }));
@@ -464,7 +465,13 @@ function gateOwner() {
   const go = async () => {
     err.textContent = '';
     if (!PINRE.test(pw.value)) { err.textContent = 'PIN 4 ya 8 digits ka hota hai.'; return; }
-    try { await api('owner/login', 'POST', { password: pw.value }); sessionStorage.setItem('d_alive', '1'); startOwner(); }
+    try {
+      await api('owner/login', 'POST', { password: pw.value });
+      sessionStorage.setItem('d_alive', '1');
+      const bk = document.querySelector('.book');
+      if (bk && !matchMedia('(prefers-reduced-motion: reduce)').matches) { bk.classList.add('open'); await new Promise((r) => setTimeout(r, 600)); }
+      startOwner();
+    }
     catch (e) { err.textContent = e.message; pw.value = ''; }
   };
   pinKeys(pw, go);
@@ -530,24 +537,42 @@ function otdSection() {
   if (!old.length) return null;
   return h('div', { class: 'otd' }, h('p', { class: 'sub' }, '\u2728 Aaj hi ke din, pichle saal'), h('div', { class: 'cards' }, old.map(card)));
 }
+const fmtDay = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+function streakInfo() {
+  const days = new Set(S.pages.map((p) => p.day));
+  let streak = 0; const t = new Date();
+  if (!days.has(fmtDay(t))) t.setDate(t.getDate() - 1);
+  while (days.has(fmtDay(t))) { streak++; t.setDate(t.getDate() - 1); }
+  return streak;
+}
+const PROMPTS = ['Aaj ka sabse khoobsurat pal kaun sa tha?', 'Kis cheez ke liye aaj dil se shukriya?', 'Aaj kisne tumhe hasaya aur kyun?', 'Is hafte ka sabse bada sabak kya tha?', 'Aaj ka din ek rang hota to kaun sa?', 'Kya khabar ya kisi ki baat aaj yaad rahi?', 'Apne bachpan ki ek mithi yaad likho.', 'Aaj kuch naya sikha ya mehsoos hua?', 'Kaun sa gaana aaj dimag me ghoom raha hai?', 'Aaj kisi se kahi ek baat jo dil ko lagi.', 'Aaj ka mausam aur tumhara mood - kaisa raha?', 'Ek khwahish jo aaj phir se jagii.', 'Aaj jhoot ya sach - kisi se dil ki baat?', 'Aaj khud ke liye kya kiya?', 'Kisi purane dost ko aaj yaad kiya? Woh kaun si baat thi?', 'Aaj ka sabse mushkil aur sabse aasan kaam.', 'Ek aadat jo chhodni hai, ek jo pakadni hai.', 'Aaj ki ek chhoti si jeet likho.', 'Kal ke liye ek ummeed.', 'Aaj kisi ke saamne hasi aa gayi? Woh pal likho.', 'Ghar ki ek khushboo ya swad jo yaad aaya.', 'Aaj ka din shayari ke do lafzon me.', 'Kis cheez ka intezaar sabse zyada hai?', 'Aaj ek faisala liya? Uske peeche ki soch.', 'Kaun si jagah aaj jaane ka mann kiya?', 'Aaj paise, waqt ya pyaar - kis baat ne sochaya?', 'Ek purani photo ya message jo aaj dikha.', 'Aaj raat sone se pehle kya soch rahe ho?', 'Is mahine ka best din ab tak?', 'Aaj kis baat par gussa aaya, phir kya hua?', 'Apne aap se ek wada - aaj likh do.'];
+function promptBar() {
+  if (S.readonly) return null;
+  const now = new Date(), start = new Date(now.getFullYear(), 0, 0);
+  const q = PROMPTS[Math.floor((now - start) / 86400000) % PROMPTS.length];
+  const today = S.pages.find((p) => p.day === todayStr());
+  return h('button', { class: 'prompt', onclick: () => (today ? openPage(today.id) : newPage()) },
+    h('span', { class: 'pl' }, 'Aaj ka sawal'), h('span', { class: 'pq' }, q));
+}
 function home(first) {
   if (first) history.replaceState({ v: 'home' }, '');
   if (curAudio) curAudio.a.pause();
   cur = null; document.title = S.name;
   const y = S.year, byM = (m) => S.pages.filter((p) => { const d = parseDay(p.day); return d.getFullYear() === y && d.getMonth() === m; });
-  const shown = S.pages.filter((p) => { const d = parseDay(p.day); return d.getFullYear() === y && (S.month == null || d.getMonth() === S.month); }).sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : 0));
+  const shown = S.pages.filter((p) => { const d = parseDay(p.day); return d.getFullYear() === y && (S.month == null || d.getMonth() === S.month); }).sort((a, b) => ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)) || (a.day < b.day ? 1 : a.day > b.day ? -1 : 0));
+  const stats = (!S.readonly && S.pages.length) ? h('div', { class: 'stats' }, [streakInfo() > 1 ? streakInfo() + ' din lagatar likha' : '', S.pages.length + ' page' + (S.pages.length > 1 ? 's' : '')].filter(Boolean).join(' \u00b7 ')) : null;
   const tabs = h('div', { class: 'mtabs big' }, h('b', { class: S.month == null ? 'on' : '', onclick: () => { S.month = null; home(); } }, 'ALL'),
     MONTHS.map((n, i) => h('b', { class: (S.month === i ? 'on ' : '') + (byM(i).length ? 'has' : ''), onclick: () => { S.month = i; home(); } }, n)));
   const list = shown.length ? shown.map(card) : [h('div', { class: 'empty' }, h('div', { class: 'big', html: STK.sprig }), h('p', {}, S.readonly ? 'Is mahine koi page share nahi hua.' : 'Abhi koi page nahi. Neeche + dabao aur aaj ka page likho.'))];
   root.replaceChildren(h('div', { class: 'home' },
     topbar(null, h('div', { class: 'ttl' }, S.name), [iconBtn('search', searchScreen, 'khojo'), S.readonly ? null : iconBtn('chart', () => moodScreen(), 'mood'), themeBtn(), S.readonly ? null : iconBtn('gear', openSettings, 'settings')]),
     h('div', { class: 'yr' }, iconBtn('back', () => { S.year--; home(); }), h('b', {}, y), h('button', { class: 'ib flip', onclick: () => { S.year++; home(); }, html: IC.back })),
-    installBar(), tabs, otdSection(), h('div', { class: 'cards' }, list),
+    installBar(), tabs, stats, promptBar(), otdSection(), h('div', { class: 'cards' }, list),
     S.readonly ? null : h('button', { class: 'fab', onclick: newPage, 'aria-label': 'new page' }, ico('plus'))));
 }
 function card(p) {
   const d = parseDay(p.day), first = p.items.find((i) => i.t === 'photo'), txt = p.items.find((i) => i.t === 'text');
-  return h('button', { class: 'card', onclick: () => openPage(p.id) },
+  return h('button', { class: 'card' + (p.pinned ? ' pinned' : ''), onclick: () => openPage(p.id) },
     h('div', { class: 'cd' }, h('b', {}, d.getDate()), h('small', {}, MONTHS[d.getMonth()]), p.mood && MOODMAP[p.mood] ? h('i', { class: 'cmood' }, MOODMAP[p.mood][0]) : null),
     h('div', { class: 'cm' }, h('div', { class: 'ct' }, p.title || (txt ? txt.text.split('\n')[0].slice(0, 40) : WD[d.getDay()] + ' ka page')), h('div', { class: 'cs' }, WD[d.getDay()] + ' · ' + p.items.length + ' cheezein' + (!S.readonly && p.shared ? ' · shared' : '') + ((p.tags || []).length ? ' · ' + p.tags.map((t) => '#' + t).join(' ') : ''))),
     first ? h('img', { class: 'cth', src: mediaUrl(first.mid), alt: '', loading: 'lazy' }) : h('div', { class: 'cth empty-th', html: STK.flower }));
@@ -596,6 +621,7 @@ function pageMenu(p, ed) {
     h('p', { class: 'sub' }, 'Tags (comma se alag, jaise: shayari, dost)'), h('input', { class: 'field', value: (p.tags || []).join(', '), maxlength: 200, placeholder: '#shayari #yaadein', onchange: (e) => { p.tags = e.target.value.split(',').map((t) => t.replace(/^#+/, '').trim()).filter(Boolean).slice(0, 12); e.target.value = p.tags.join(', '); ed.changed(); } }),
     h('button', { class: 'btn sec', style: { marginTop: '14px' }, onclick: () => { m.close(); cardModal(p); } }, '\u{1F3B4} Shayari card banao (image)'),
     h('label', { class: 'sw' }, h('input', { type: 'checkbox', checked: p.shared, onchange: (e) => { p.shared = e.target.checked; ed.changed(); } }), h('span', {}, 'Share links walon ko ye page dikhao')),
+    h('button', { class: 'btn sec', onclick: async (e) => { try { const r = await api('owner/pin', 'POST', { id: p.id }); p.pinned = r.pinned; e.target.textContent = p.pinned ? '\u2605 Pin hatayo' : '\u2606 Pin karo (list me upar)'; toast(p.pinned ? 'Page pin ho gaya' : 'Pin hat gaya'); } catch (er) { toast(er.message); } } }, (p.pinned ? '\u2605 Pin hatayo' : '\u2606 Pin karo (list me upar)')),
     h('button', { class: 'btn danger', onclick: async () => { if (!confirm('Ye page hamesha ke liye delete karna hai?')) return; await api('owner/pages/' + p.id, 'DELETE'); S.pages = S.pages.filter((x) => x.id !== p.id); cur = null; m.close(); history.back(); } }, 'Page delete karo'),
     h('button', { class: 'btn', onclick: () => m.close() }, 'Ho gaya')));
 }

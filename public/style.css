@@ -170,3 +170,26 @@ input[type=range]{width:100%;accent-color:var(--accd)}
 .pkey:active{transform:scale(.96)}
 .book .pkey{background:rgba(255,244,220,.16);color:#f3e3c2;border-color:rgba(255,235,200,.4)}
 [data-theme=dark] .book .pkey{color:#e6c27a;border-color:rgba(230,194,122,.4);background:rgba(230,194,122,.12)}
+
+/* quality pass: transitions + micro-animations */
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+#app>div{animation:fadeUp .3s cubic-bezier(.2,.7,.3,1) both}
+.cards .card{animation:fadeUp .38s both;transition:transform .15s ease,box-shadow .15s ease}
+.cards .card:nth-child(2){animation-delay:.04s}.cards .card:nth-child(3){animation-delay:.08s}.cards .card:nth-child(4){animation-delay:.12s}.cards .card:nth-child(5){animation-delay:.16s}.cards .card:nth-child(6){animation-delay:.2s}.cards .card:nth-child(n+7){animation-delay:.24s}
+.card:active{transform:scale(.985)}
+.fab{transition:transform .16s ease}.fab:active{transform:scale(.9) rotate(90deg)}
+.mback{animation:mfade .18s ease-out}@keyframes mfade{from{opacity:0}}
+.chip{transition:transform .12s ease}.chip:active{transform:scale(.93)}
+.gate{perspective:1300px}
+.book{transition:transform .6s cubic-bezier(.45,0,.2,1),opacity .55s ease;transform-origin:left center;backface-visibility:hidden}
+.book.open{transform:rotateY(-82deg) translateX(-4%);opacity:0}
+
+/* home: stats + daily prompt */
+.stats{text-align:center;font-size:12px;letter-spacing:.3px;color:var(--mute);margin:2px 16px 0}
+.prompt{display:block;width:calc(100% - 32px);margin:12px 16px 0;text-align:left;background:linear-gradient(120deg,var(--card),var(--paper2));border:1px solid var(--line);border-radius:14px;padding:11px 14px;box-shadow:var(--shadow);cursor:pointer;color:var(--ink);font:inherit;transition:transform .15s ease}
+.prompt:active{transform:scale(.985)}
+.prompt .pl{display:block;font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--accd);font-weight:600;margin-bottom:3px}
+.prompt .pq{font-family:Kalam,cursive;font-size:16.5px;line-height:1.35}
+.card.pinned .ct::before{content:'\2605 ';color:var(--accd)}
+
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
