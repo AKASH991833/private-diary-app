@@ -1,7 +1,7 @@
 {
   "id": "/owner",
-  "name": "Meri Dayri",
-  "short_name": "Dayri",
+  "name": "My Diary",
+  "short_name": "Diary",
   "description": "Private diary",
   "start_url": "/owner",
   "scope": "/",

@@ -171,9 +171,9 @@ module.exports = async (req, res) => {
       if (parts[1] === 'login' && method === 'POST') {
         const key = 'owner:' + ip(req), gkey = 'owner:global';
         const w = Math.max(await guard(key), await guard(gkey));
-        if (w) return send(res, 429, { error: `Bahut galat try. ${w} min baad try karo.` });
+        if (w) return send(res, 429, { error: `Too many wrong attempts. Try again in ${w} minutes.` });
         const okPw = await checkOwnerPassword(String(body.password || ''));
-        if (!okPw) { await fail(key); await fail(gkey, 25, 30 * 60000); return send(res, 401, { error: 'PIN galat hai.' }); }
+        if (!okPw) { await fail(key); await fail(gkey, 25, 30 * 60000); return send(res, 401, { error: 'Wrong PIN.' }); }
         await okReset(key); await okReset(gkey);
         setSessionCookie(res, 'od', await sign({ role: 'owner', exp: now() + COOKIE_DAYS_OWNER * 86400000 }));
         return send(res, 200, { ok: true });
@@ -181,13 +181,13 @@ module.exports = async (req, res) => {
       if (parts[1] === 'logout') { clearCookie(res, 'od'); return send(res, 200, { ok: true }); }
       // One-time PIN reset: needs the secret key (only its sha256 lives here). Self-disables after one success.
       if (parts[1] === 'reset' && method === 'POST') {
-        if (await getSet('reset_done')) return send(res, 410, { error: 'Reset pehle hi ho chuka hai. Naye PIN se login karo.' });
+        if (await getSet('reset_done')) return send(res, 410, { error: 'Reset was already used. Log in with the new PIN.' });
         const key = 'reset:' + ip(req), gkey = 'reset:global';
         const w = Math.max(await guard(key), await guard(gkey));
-        if (w) return send(res, 429, { error: `Bahut galat try. ${w} min baad try karo.` });
-        if (!safeEq(sha(String(body.key || '').replace(/\s+/g, '')), RESET_HASH)) { await fail(key); await fail(gkey, 10, 60 * 60000); return send(res, 403, { error: 'Reset key galat hai.' }); }
+        if (w) return send(res, 429, { error: `Too many wrong attempts. Try again in ${w} minutes.` });
+        if (!safeEq(sha(String(body.key || '').replace(/\s+/g, '')), RESET_HASH)) { await fail(key); await fail(gkey, 10, 60 * 60000); return send(res, 403, { error: 'Wrong reset key.' }); }
         const np = String(body.pin || '');
-        if (!PIN_RE.test(np)) return send(res, 400, { error: 'PIN 4 ya 8 digits ka hona chahiye.' });
+        if (!PIN_RE.test(np)) return send(res, 400, { error: 'PIN must be 4 or 8 digits.' });
         const salt = rid(12);
         await setSet('pw_salt', salt); await setSet('pw_hash', scrypt(np, salt));
         await setSet('reset_done', '1');
@@ -197,12 +197,12 @@ module.exports = async (req, res) => {
         return send(res, 200, { ok: true });
       }
       if (parts[1] === 'me') return send(res, 200, { owner: await isOwner(req) });
-      if (!(await isOwner(req))) return send(res, 401, { error: 'login karo' });
+      if (!(await isOwner(req))) return send(res, 401, { error: 'Please log in' });
 
       if (parts[1] === 'settings') {
-        if (method === 'GET') return send(res, 200, { name: (await getSet('name')) || 'Meri Dayri', theme: (await getSet('theme')) || 'auto', paper: (await getSet('paper')) || 'lined' });
+        if (method === 'GET') return send(res, 200, { name: (await getSet('name')) || 'My Diary', theme: (await getSet('theme')) || 'auto', paper: (await getSet('paper')) || 'lined' });
         if (method === 'POST') {
-          if (body.name !== undefined) await setSet('name', clean(body.name, 40) || 'Meri Dayri');
+          if (body.name !== undefined) await setSet('name', clean(body.name, 40) || 'My Diary');
           if (['auto', 'light', 'dark'].includes(body.theme)) await setSet('theme', body.theme);
           if (PAPERS.includes(body.paper)) await setSet('paper', body.paper);
           return send(res, 200, { ok: true });
@@ -211,10 +211,10 @@ module.exports = async (req, res) => {
       if (parts[1] === 'password' && method === 'POST') {
         const key = 'pw:' + ip(req);
         const wait = await guard(key);
-        if (wait) return send(res, 429, { error: `Bahut galat try. ${wait} min baad try karo.` });
-        if (!(await checkOwnerPassword(String(body.current || '')))) { await fail(key); return send(res, 401, { error: 'Purana PIN galat hai.' }); }
+        if (wait) return send(res, 429, { error: `Too many wrong attempts. Try again in ${wait} minutes.` });
+        if (!(await checkOwnerPassword(String(body.current || '')))) { await fail(key); return send(res, 401, { error: 'Current PIN is wrong.' }); }
         const np = String(body.next || '');
-        if (!PIN_RE.test(np)) return send(res, 400, { error: 'Naya PIN 4 ya 8 digits ka hona chahiye.' });
+        if (!PIN_RE.test(np)) return send(res, 400, { error: 'New PIN must be 4 or 8 digits.' });
         await okReset(key);
         const salt = rid(12);
         await setSet('pw_salt', salt); await setSet('pw_hash', scrypt(np, salt));
@@ -231,7 +231,7 @@ module.exports = async (req, res) => {
           const id = body.id && /^[\w-]{6,24}$/.test(body.id) ? body.id : rid();
           const items = Array.isArray(body.items) ? body.items.slice(0, 300) : [];
           const json = JSON.stringify(items);
-          if (json.length > 600000) return send(res, 413, { error: 'Page bahut bhari ho gayi.' });
+          if (json.length > 600000) return send(res, 413, { error: 'This page is too large.' });
           const day = DAY.test(body.day || '') ? body.day : new Date().toISOString().slice(0, 10);
           const mood = MOODS.includes(body.mood) ? body.mood : '';
           const tags = JSON.stringify((Array.isArray(body.tags) ? body.tags : []).map((t) => clean(String(t).replace(/^#+/, '').trim(), 24)).filter(Boolean).slice(0, 12));
@@ -252,8 +252,8 @@ module.exports = async (req, res) => {
       if (parts[1] === 'media') {
         if (method === 'POST' && !parts[2]) {
           const mime = String(body.mime || '').split(';')[0].toLowerCase();
-          if (!MIMES[mime]) return send(res, 400, { error: 'Ye file type allowed nahi hai.' });
-          if (!(Number(body.size) > 0) || Number(body.size) > MAX_MEDIA) return send(res, 413, { error: 'File 14 MB se chhoti honi chahiye.' });
+          if (!MIMES[mime]) return send(res, 400, { error: 'This file type is not allowed.' });
+          if (!(Number(body.size) > 0) || Number(body.size) > MAX_MEDIA) return send(res, 413, { error: 'File must be smaller than 14 MB.' });
           const id = rid();
           await q('INSERT INTO diary_media (id, kind, mime, name, size, chunks, created_at) VALUES (?,?,?,?,?,?,?)', [id, MIMES[mime], mime, clean(body.name, 120), Number(body.size), 0, now()]);
           return send(res, 200, { ok: true, id });
@@ -301,14 +301,14 @@ module.exports = async (req, res) => {
         }
         if (method === 'POST' && !parts[2]) {
           const pass = String(body.passcode || '');
-          if (pass.length < 4 || pass.length > 32) return send(res, 400, { error: 'Passcode 4 se 32 akshar ka rakho.' });
+          if (pass.length < 4 || pass.length > 32) return send(res, 400, { error: 'Passcode must be 4 to 32 characters.' });
           const salt = rid(12), id = rid();
-          await q('INSERT INTO diary_links (id, label, token, salt, hash, ver, revoked, created_at, last_opened) VALUES (?,?,?,?,?,?,?,?,?)', [id, clean(body.label, 80) || 'Kisi ke liye', rid(24), salt, scrypt(pass, salt), 1, 0, now(), 0]);
+          await q('INSERT INTO diary_links (id, label, token, salt, hash, ver, revoked, created_at, last_opened) VALUES (?,?,?,?,?,?,?,?,?)', [id, clean(body.label, 80) || 'Someone', rid(24), salt, scrypt(pass, salt), 1, 0, now(), 0]);
           return send(res, 200, { ok: true, id });
         }
         if (parts[2] && parts[3] === 'passcode' && method === 'POST') {
           const pass = String(body.passcode || '');
-          if (pass.length < 4 || pass.length > 32) return send(res, 400, { error: 'Passcode 4 se 32 akshar ka rakho.' });
+          if (pass.length < 4 || pass.length > 32) return send(res, 400, { error: 'Passcode must be 4 to 32 characters.' });
           const salt = rid(12);
           await q('UPDATE diary_links SET salt=?, hash=?, ver=ver+1 WHERE id=?', [salt, scrypt(pass, salt), parts[2]]);
           return send(res, 200, { ok: true });
@@ -319,7 +319,7 @@ module.exports = async (req, res) => {
       }
       if (parts[1] === 'export' && method === 'GET') {
         const pg = await q('SELECT * FROM diary_pages ORDER BY day ASC, created_at ASC');
-        return send(res, 200, { name: (await getSet('name')) || 'Meri Dayri', exportedAt: now(), settings: { theme: (await getSet('theme')) || 'auto', paper: (await getSet('paper')) || 'lined' }, pages: pg.map(pageOut) });
+        return send(res, 200, { name: (await getSet('name')) || 'My Diary', exportedAt: now(), settings: { theme: (await getSet('theme')) || 'auto', paper: (await getSet('paper')) || 'lined' }, pages: pg.map(pageOut) });
       }
       if (parts[1] === 'vapid' && method === 'GET') { const vk = await vapidKeys(); return send(res, 200, { key: vk.publicKey }); }
       if (parts[1] === 'push') {
@@ -327,7 +327,7 @@ module.exports = async (req, res) => {
         if (method === 'POST') {
           const sub = body.sub || {};
           const ep = clean(sub.endpoint, 700), auth = clean(sub.keys && sub.keys.auth, 100), p256 = clean(sub.keys && sub.keys.p256dh, 200);
-          if (!ep.startsWith('https://') || !auth || !p256) return send(res, 400, { error: 'Subscription sahi nahi hai.' });
+          if (!ep.startsWith('https://') || !auth || !p256) return send(res, 400, { error: 'Invalid subscription.' });
           await q('DELETE FROM diary_push WHERE endpoint = ?', [ep]);
           await q('INSERT INTO diary_push (endpoint, p256dh, auth, created_at) VALUES (?,?,?,?)', [ep, p256, auth, now()]);
           return send(res, 200, { ok: true });
@@ -353,7 +353,7 @@ module.exports = async (req, res) => {
       let sent = 0;
       for (const sub of subs) {
         try {
-          await wp.sendNotification({ endpoint: sub.endpoint, keys: { auth: sub.auth, p256dh: sub.p256dh } }, JSON.stringify({ title: 'Meri Dayri', body: 'Aaj ka page likhna baaki hai', url: '/owner' }));
+          await wp.sendNotification({ endpoint: sub.endpoint, keys: { auth: sub.auth, p256dh: sub.p256dh } }, JSON.stringify({ title: 'My Diary', body: 'Your page for today is still unwritten', url: '/owner' }));
           sent++;
         } catch (e) { if (e.statusCode === 404 || e.statusCode === 410) await q('DELETE FROM diary_push WHERE endpoint = ?', [sub.endpoint]); }
       }
@@ -370,13 +370,13 @@ module.exports = async (req, res) => {
       };
       const link = await gate();
       if (parts[2] === 'info') return send(res, 200, { ok: !!link }); // does not reveal anything else
-      if (!link) return send(res, 404, { error: 'Ye link band ho chuka hai ya galat hai.' });
+      if (!link) return send(res, 404, { error: 'This link has been disabled or is wrong.' });
       const cname = 'v_' + link.id.slice(0, 8).replace(/[^\w]/g, 'x');
       if (parts[2] === 'unlock' && method === 'POST') {
         const key = 'view:' + link.id + ':' + ip(req);
         const wait = await guard(key);
-        if (wait) return send(res, 429, { error: `Bahut galat try. ${wait} min baad try karo.` });
-        if (!safeEq(scrypt(body.passcode || '', link.salt), link.hash)) { await fail(key); return send(res, 401, { error: 'Passcode galat hai.' }); }
+        if (wait) return send(res, 429, { error: `Too many wrong attempts. Try again in ${wait} minutes.` });
+        if (!safeEq(scrypt(body.passcode || '', link.salt), link.hash)) { await fail(key); return send(res, 401, { error: 'Wrong passcode.' }); }
         await okReset(key);
         await q('UPDATE diary_links SET last_opened=? WHERE id=?', [now(), link.id]);
         setCookie(res, cname, await sign({ role: 'viewer', l: link.id, v: Number(link.ver), exp: now() + COOKIE_DAYS_VIEWER * 86400000 }), COOKIE_DAYS_VIEWER);
@@ -387,7 +387,7 @@ module.exports = async (req, res) => {
       if (parts[2] === 'pages') {
         const r = await q('SELECT * FROM diary_pages WHERE shared = 1 ORDER BY day ASC, created_at ASC');
         const s2 = await getSet('name');
-        return send(res, 200, { name: s2 || 'Meri Dayri', pages: r.map(pageOut).map(({ shared, ...p }) => p) });
+        return send(res, 200, { name: s2 || 'My Diary', pages: r.map(pageOut).map(({ shared, ...p }) => p) });
       }
       if (parts[2] === 'entries') {
         const r = await q('SELECT * FROM diary_entries WHERE shared = 1 ORDER BY entry_at ASC');
@@ -398,6 +398,6 @@ module.exports = async (req, res) => {
     return send(res, 404, { error: 'not found' });
   } catch (e) {
     console.error(e);
-    return send(res, 500, { error: 'Kuch gadbad hui. Thodi der baad try karo.' });
+    return send(res, 500, { error: 'Something went wrong. Please try again later.' });
   }
 };

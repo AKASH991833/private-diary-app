@@ -1,5 +1,5 @@
 /* Caches only the public app shell (no diary data). /api and /m are never touched. */
-const V = 'diary-shell-v7';
+const V = 'diary-shell-v8';
 const SHELL = ['/index.html', '/style.css', '/app.js', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(V).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== V).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
@@ -18,7 +18,7 @@ self.addEventListener('fetch', (e) => {
 });
 
 self.addEventListener('push', (e) => {
-  let d = { title: 'Meri Dayri', body: 'Aaj ka page likhna baaki hai', url: '/owner' };
+  let d = { title: 'My Diary', body: 'Your page for today is still unwritten', url: '/owner' };
   try { if (e.data) d = { ...d, ...e.data.json() }; } catch {}
   e.waitUntil(self.registration.showNotification(d.title, { body: d.body, icon: '/icons/icon-192.png', badge: '/icons/icon-192.png', data: { url: d.url } }));
 });

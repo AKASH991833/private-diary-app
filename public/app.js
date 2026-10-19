@@ -93,7 +93,7 @@ const FILTERS = { none: 'none', warm: 'sepia(.25) saturate(1.2) brightness(1.04)
 const FRAMES = { polaroid: 'Polaroid', tape: 'Tape', plain: 'Plain', round: 'Round', film: 'Film' };
 const FONTSET = { kalam: ['Kalam', 'Kalam, "Noto Sans Devanagari", cursive'], caveat: ['Caveat', 'Caveat, Kalam, cursive'], yatra: ['Yatra One', 'Yatra, serif'], serif: ['Serif', '"Bodoni Moda", Georgia, serif'] };
 const COLORS = ['auto', '#b24a6a', '#5b4a8a', '#2f5d8a', '#7a3e2b', '#b8923a', '#ffffff'];
-const MOODMAP = { khush: ['\u{1F60A}', 'Khush', 5], pyaar: ['\u2764\uFE0F', 'Pyaar', 5], umeed: ['\u{1F308}', 'Umeed', 4], shaant: ['\u{1F60C}', 'Shaant', 4], yaad: ['\u{1F940}', 'Yaad', 3], thakaan: ['\u{1F634}', 'Thakaan', 2], gussa: ['\u{1F620}', 'Gussa', 1], udaas: ['\u{1F622}', 'Udaas', 1] };
+const MOODMAP = { khush: ['\u{1F60A}', 'Happy', 5], pyaar: ['\u2764\uFE0F', 'Love', 5], umeed: ['\u{1F308}', 'Hopeful', 4], shaant: ['\u{1F60C}', 'Calm', 4], yaad: ['\u{1F940}', 'Nostalgic', 3], thakaan: ['\u{1F634}', 'Tired', 2], gussa: ['\u{1F620}', 'Angry', 1], udaas: ['\u{1F622}', 'Sad', 1] };
 const todayStrLocal = () => { const d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
 const b64ToU8 = (b) => { const p = '='.repeat((4 - b.length % 4) % 4), x = atob((b + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(x, (c) => c.charCodeAt(0)); };
 
@@ -127,7 +127,7 @@ async function toLoop(file, onProgress) {
   const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.preload = 'auto'; v.style.cssText = 'position:fixed;left:-9999px;width:2px';
   const url = URL.createObjectURL(file); v.src = url; document.body.append(v);
   try {
-    await new Promise((res, rej) => { v.onloadedmetadata = res; v.onerror = () => rej(new Error('video nahi khuli')); });
+    await new Promise((res, rej) => { v.onloadedmetadata = res; v.onerror = () => rej(new Error('Could not open the video')); });
     const dur = Math.min(20, v.duration || 20), k = Math.min(1, 480 / Math.max(v.videoWidth, v.videoHeight));
     const c = document.createElement('canvas'); c.width = Math.max(2, Math.round(v.videoWidth * k / 2) * 2); c.height = Math.max(2, Math.round(v.videoHeight * k / 2) * 2);
     const x = c.getContext('2d');
@@ -202,11 +202,11 @@ function musicBody(it, ctx) {
     play.textContent = mine && !mine.paused ? '❚❚' : '▶';
     bar.firstChild.style.width = mine && mine.duration ? (mine.currentTime / mine.duration * 100) + '%' : '0%';
   };
-  const act = (fn) => (e) => { if (ctx.edit) return; e.stopPropagation(); if (!it.mid) return toast('Is gaane ki file nahi lagi, sirf naam hai'); const c = audioFor(it.mid, state); fn(c.a); state(); };
-  play.onclick = act((a) => (a.paused ? a.play().catch(() => toast('Play nahi hua')) : a.pause()));
+  const act = (fn) => (e) => { if (ctx.edit) return; e.stopPropagation(); if (!it.mid) return toast('No audio file is attached to this song, only the name'); const c = audioFor(it.mid, state); fn(c.a); state(); };
+  play.onclick = act((a) => (a.paused ? a.play().catch(() => toast('Could not play')) : a.pause()));
   const art = it.cover ? h('img', { class: 'art', src: mediaUrl(it.cover), alt: '' }) : h('div', { class: 'art' });
   setTimeout(state);
-  return h('div', { class: 'mp' }, art, h('div', { class: 'mi' }, h('small', {}, 'currently listening'), h('div', { class: 'mt' }, it.title || 'Gaana'), h('div', { class: 'ma' }, it.artist || '')),
+  return h('div', { class: 'mp' }, art, h('div', { class: 'mi' }, h('small', {}, 'currently listening'), h('div', { class: 'mt' }, it.title || 'Song'), h('div', { class: 'ma' }, it.artist || '')),
     h('div', { class: 'mc' }, h('button', { onclick: act((a) => (a.currentTime = Math.max(0, a.currentTime - 10))) }, '◂◂'), play, h('button', { onclick: act((a) => (a.currentTime = Math.min(a.duration || 1e9, a.currentTime + 10))) }, '▸▸')), bar);
 }
 function applyBox(el, it) {
@@ -284,8 +284,8 @@ function editor(page, ctx) {
   const wc = () => { let n = 0; for (const it of page.items || []) { if (it.t === 'text' && it.text) n += it.text.trim().split(/\s+/).filter(Boolean).length; } return n; };
   const save = async () => {
     status.textContent = 'Saving…';
-    try { await api('owner/pages', 'POST', page); status.textContent = 'Saved ✓ · ' + wc() + ' shabd'; }
-    catch (e) { status.textContent = 'Save nahi hua, retry…'; clearTimeout(saveT); saveT = setTimeout(save, 4000); }
+    try { await api('owner/pages', 'POST', page); status.textContent = 'Saved ✓ · ' + wc() + ' words'; }
+    catch (e) { status.textContent = 'Save failed, retrying…'; clearTimeout(saveT); saveT = setTimeout(save, 4000); }
   };
   ed.changed = () => { status.textContent = '…'; clearTimeout(saveT); saveT = setTimeout(save, 700); };
   const sheetWrap = renderSheet(page, { ed });
@@ -324,12 +324,12 @@ function editor(page, ctx) {
     b.push(btn('up', 'Aage', () => { it.z = maxZ() + 1; applyBox(el(it.id), it); ed.changed(); }),
       btn('down', 'Peeche', () => { it.z = Math.max(1, Math.min(...page.items.map((i) => i.z || 1)) - 1); applyBox(el(it.id), it); ed.changed(); }),
       btn('copy', 'Copy', () => { const c = JSON.parse(JSON.stringify(it)); c.id = uid(); c.x += 18; c.y += 18; c.z = maxZ() + 1; page.items.push(c); sheet._mount(c); ed.select(c.id); ed.changed(); }),
-      btn('trash', 'Delete', () => { if (!confirm('Ye hata dein?')) return; page.items = page.items.filter((i) => i.id !== it.id); el(it.id).remove(); sheet._els.delete(it.id); ed.sel = null; drawBar(); ed.changed(); }, 'danger'),
+      btn('trash', 'Delete', () => { if (!confirm('Remove this?')) return; page.items = page.items.filter((i) => i.id !== it.id); el(it.id).remove(); sheet._els.delete(it.id); ed.sel = null; drawBar(); ed.changed(); }, 'danger'),
       h('button', { class: 'tb done', onclick: () => ed.select(null) }, 'Done'));
     bar.append(...b);
   }
   drawBar();
-  const grow = h('button', { class: 'grow', onclick: () => { page.h = Math.min(6000, page.h + 320); sheet.style.height = page.h + 'px'; sheet._fit(); ed.changed(); } }, '+ Page lamba karo');
+  const grow = h('button', { class: 'grow', onclick: () => { page.h = Math.min(6000, page.h + 320); sheet.style.height = page.h + 'px'; sheet._fit(); ed.changed(); } }, '+ Make page longer');
   ed.status = status; ed.node = h('div', { class: 'editor' }, sheetWrap, grow); ed.bar = bar; ed.sheet = sheet;
   ed.flush = () => { clearTimeout(saveT); return save(); };
   return ed;
@@ -338,24 +338,24 @@ async function addPhotos(ed) {
   const files = await pick('image/*', true); if (!files.length) return;
   for (const f of files) {
     try {
-      toast('Photo lag rahi hai…', 8000);
+      toast('Adding photo…', 8000);
       const { blob, ar } = await shrinkImage(f); const mid = await upload(blob, f.name, 'image/jpeg');
       ed.add({ t: 'photo', mid, ar, w: 160, frame: 'polaroid', filter: 'none', cap: '' });
-    } catch (e) { toast('Photo nahi lagi: ' + e.message); }
+    } catch (e) { toast('Could not add photo: ' + e.message); }
   }
-  toast('Photo lag gayi');
+  toast('Photo added');
 }
 async function addVideo(ed) {
   const [f] = await pick('video/*', false); if (!f) return;
   try {
-    toast('Video chhota loop clip ban raha hai…', 60000);
-    let r = await toLoop(f, (p) => toast(`Loop clip ban rahi hai ${Math.round(p * 100)}%`, 60000));
-    if (!r) { if (f.size > 12 * 1024 * 1024) throw new Error('Is phone me video convert nahi ho sakta, 12 MB se chhoti video chuno'); r = { blob: f, ar: 0.75 }; }
-    toast('Upload ho raha hai…', 60000);
+    toast('Turning the video into a short loop clip…', 60000);
+    let r = await toLoop(f, (p) => toast(`Making loop clip ${Math.round(p * 100)}%`, 60000));
+    if (!r) { if (f.size > 12 * 1024 * 1024) throw new Error('This phone cannot convert the video. Choose a video under 12 MB'); r = { blob: f, ar: 0.75 }; }
+    toast('Uploading…', 60000);
     const mid = await upload(r.blob, 'clip', (r.blob.type || 'video/mp4').split(';')[0]);
     ed.add({ t: 'video', mid, ar: r.ar, w: 170, frame: 'polaroid', filter: 'none', cap: '' });
-    toast('Clip lag gayi (' + (r.blob.size / 1024 / 1024).toFixed(1) + ' MB)');
-  } catch (e) { toast('Video nahi lagi: ' + e.message, 4000); }
+    toast('Clip added (' + (r.blob.size / 1024 / 1024).toFixed(1) + ' MB)');
+  } catch (e) { toast('Could not add video: ' + e.message, 4000); }
 }
 function stickerModal(ed) {
   let m;
@@ -366,50 +366,50 @@ function stickerModal(ed) {
   m = modal('Stickers', h('div', {}, h('p', { class: 'sub' }, 'Washi tape'), tp, h('p', { class: 'sub' }, 'Doodles'), g, h('p', { class: 'sub' }, 'Emoji'), e));
 }
 function frameModal(it, ed) {
-  const m = modal('Frame aur filter', h('div', {},
+  const m = modal('Frame and filter', h('div', {},
     h('p', { class: 'sub' }, 'Frame'), chips(FRAMES, it.frame || 'polaroid', (k) => { it.frame = k; ed.redraw(it); ed.changed(); }),
     h('p', { class: 'sub' }, 'Filter'), chips({ none: 'Original', warm: 'Warm', bw: 'B&W', vintage: 'Vintage', cool: 'Cool', fade: 'Fade' }, it.filter || 'none', (k) => { it.filter = k; ed.redraw(it); ed.changed(); }),
-    h('p', { class: 'sub' }, 'Caption'), h('input', { class: 'field', value: it.cap || '', maxlength: 60, placeholder: 'Chhota caption (optional)', oninput: (e) => { it.cap = e.target.value; ed.redraw(it); ed.changed(); } }),
-    h('button', { class: 'btn', onclick: () => m.close() }, 'Ho gaya')));
+    h('p', { class: 'sub' }, 'Caption'), h('input', { class: 'field', value: it.cap || '', maxlength: 60, placeholder: 'Short caption (optional)', oninput: (e) => { it.cap = e.target.value; ed.redraw(it); ed.changed(); } }),
+    h('button', { class: 'btn', onclick: () => m.close() }, 'Done')));
 }
 function textModal(it, ed) {
   const isLabel = it.t === 'label';
-  const ta = h('textarea', { class: 'field', rows: isLabel ? 1 : 5, placeholder: 'Yahan likho…' }, it.text || '');
+  const ta = h('textarea', { class: 'field', rows: isLabel ? 1 : 5, placeholder: 'Write here…' }, it.text || '');
   ta.oninput = () => { it.text = ta.value; ed.redraw(it); ed.changed(); };
   const body = h('div', {}, ta);
   if (!isLabel) {
     body.append(h('p', { class: 'sub' }, 'Font'), chips(Object.fromEntries(Object.entries(FONTSET).map(([k, v]) => [k, v[0]])), it.font || 'kalam', (k) => { it.font = k; ed.redraw(it); ed.changed(); }),
       h('p', { class: 'sub' }, 'Size'), h('input', { type: 'range', min: 12, max: 44, value: it.size || 18, oninput: (e) => { it.size = Number(e.target.value); ed.redraw(it); ed.changed(); } }),
-      h('p', { class: 'sub' }, 'Alignment'), chips({ left: 'Left', center: 'Beech me', right: 'Right' }, it.align || 'left', (k) => { it.align = k; ed.redraw(it); ed.changed(); }),
+      h('p', { class: 'sub' }, 'Alignment'), chips({ left: 'Left', center: 'Center', right: 'Right' }, it.align || 'left', (k) => { it.align = k; ed.redraw(it); ed.changed(); }),
       h('p', { class: 'sub' }, 'Colour'), h('div', { class: 'row' }, COLORS.map((c) => h('button', { class: 'cc' + ((it.color || 'auto') === c ? ' on' : ''), style: { background: c === 'auto' ? 'linear-gradient(135deg,#222 50%,#eee 50%)' : c }, onclick: (e) => { it.color = c; ed.redraw(it); ed.changed(); [...e.target.parentNode.children].forEach((x) => x.classList.remove('on')); e.target.classList.add('on'); } }))));
   }
-  body.append(h('button', { class: 'btn', onclick: () => m.close() }, 'Ho gaya'));
+  body.append(h('button', { class: 'btn', onclick: () => m.close() }, 'Done'));
   const m = modal(isLabel ? 'Label' : 'Text', body);
   setTimeout(() => ta.focus(), 250);
 }
 function noteModal(it, ed) {
   const t = h('input', { class: 'field', value: it.title || '', maxlength: 30, oninput: (e) => { it.title = e.target.value; ed.redraw(it); ed.changed(); } });
-  const ta = h('textarea', { class: 'field', rows: 6, placeholder: 'Har line alag item' }, it.lines || '');
+  const ta = h('textarea', { class: 'field', rows: 6, placeholder: 'Each line is a separate item' }, it.lines || '');
   ta.oninput = () => { it.lines = ta.value; ed.redraw(it); ed.changed(); };
-  const m = modal('Torn note', h('div', {}, h('p', { class: 'sub' }, 'Title'), t, h('p', { class: 'sub' }, 'Lines'), ta, h('button', { class: 'btn', onclick: () => m.close() }, 'Ho gaya')));
+  const m = modal('Torn note', h('div', {}, h('p', { class: 'sub' }, 'Title'), t, h('p', { class: 'sub' }, 'Lines'), ta, h('button', { class: 'btn', onclick: () => m.close() }, 'Done')));
 }
 function musicModal(it, ed) {
   const isNew = !it; const d = it || { t: 'music', title: '', artist: '', w: 190 };
-  const title = h('input', { class: 'field', value: d.title, placeholder: 'Gaane ka naam', maxlength: 60 }), artist = h('input', { class: 'field', value: d.artist, placeholder: 'Artist', maxlength: 60 });
-  const info = h('p', { class: 'sub' }, d.mid ? 'Audio file lagi hui hai' : 'Abhi sirf naam hai (play nahi hoga)');
+  const title = h('input', { class: 'field', value: d.title, placeholder: 'Song name', maxlength: 60 }), artist = h('input', { class: 'field', value: d.artist, placeholder: 'Artist', maxlength: 60 });
+  const info = h('p', { class: 'sub' }, d.mid ? 'Audio file attached' : 'Name only for now (it will not play)');
   let busy = false;
   const file = h('button', { class: 'btn sec', onclick: async () => {
     const [f] = await pick('audio/*,.mp3,.m4a,.aac,.wav,.ogg', false); if (!f) return;
-    const mime = guessMime(f); if (!/^audio\//.test(mime)) return toast('Sirf audio file (MP3/M4A) chuno');
-    if (f.size > 14 * 1024 * 1024) return toast('Gaana 14 MB se chhota chahiye');
-    busy = true; info.textContent = 'Upload ho raha hai…';
-    try { d.mid = await upload(f, f.name, mime); if (!title.value) title.value = f.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' '); info.textContent = 'Audio file lag gayi: ' + f.name; } catch (e) { info.textContent = 'Upload nahi hua: ' + e.message; }
+    const mime = guessMime(f); if (!/^audio\//.test(mime)) return toast('Choose an audio file only (MP3/M4A)');
+    if (f.size > 14 * 1024 * 1024) return toast('The song must be under 14 MB');
+    busy = true; info.textContent = 'Uploading…';
+    try { d.mid = await upload(f, f.name, mime); if (!title.value) title.value = f.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' '); info.textContent = 'Audio file added: ' + f.name; } catch (e) { info.textContent = 'Upload failed: ' + e.message; }
     busy = false;
-  } }, 'Audio file chuno (MP3 / M4A)');
-  const cover = h('button', { class: 'btn sec', onclick: async () => { const [f] = await pick('image/*', false); if (!f) return; try { const { blob } = await shrinkImage(f, 300); d.cover = await upload(blob, 'cover', 'image/jpeg'); toast('Cover lag gaya'); } catch (e) { toast('Cover nahi laga'); } } }, 'Cover photo (optional)');
-  const m = modal('Gaana jodo', h('div', {}, h('p', { class: 'sub' }, 'Title'), title, h('p', { class: 'sub' }, 'Artist'), artist, h('div', { class: 'gap' }), file, info, cover,
-    h('p', { class: 'hint' }, 'Gaana ki file tumhe khud deni hogi. Free storage chhoti hai, 14 MB tak.'),
-    h('button', { class: 'btn', onclick: () => { if (busy) return toast('Upload khatam hone do'); d.title = title.value.trim() || 'Gaana'; d.artist = artist.value.trim(); if (isNew) ed.add(d); else { ed.redraw(d); ed.changed(); } m.close(); } }, isNew ? 'Page me lagao' : 'Save')));
+  } }, 'Choose an audio file (MP3 / M4A)');
+  const cover = h('button', { class: 'btn sec', onclick: async () => { const [f] = await pick('image/*', false); if (!f) return; try { const { blob } = await shrinkImage(f, 300); d.cover = await upload(blob, 'cover', 'image/jpeg'); toast('Cover added'); } catch (e) { toast('Could not add cover'); } } }, 'Cover photo (optional)');
+  const m = modal('Add a song', h('div', {}, h('p', { class: 'sub' }, 'Title'), title, h('p', { class: 'sub' }, 'Artist'), artist, h('div', { class: 'gap' }), file, info, cover,
+    h('p', { class: 'hint' }, 'You need to provide the song file yourself. Free storage is small, up to 14 MB.'),
+    h('button', { class: 'btn', onclick: () => { if (busy) return toast('Wait for the upload to finish'); d.title = title.value.trim() || 'Song'; d.artist = artist.value.trim(); if (isNew) ed.add(d); else { ed.redraw(d); ed.changed(); } m.close(); } }, isNew ? 'Add to page' : 'Save')));
 }
 
 /* ---------- screens ---------- */
@@ -419,30 +419,30 @@ let deferredInstall = null;
 const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredInstall = e; if (S.mode === 'owner' && !cur) { const b = $('.instbar'); if (!b && !$('.settings')) home(); } });
-window.addEventListener('appinstalled', () => { deferredInstall = null; localStorage.setItem('pwaDone', '1'); toast('App install ho gaya'); if (S.mode === 'owner' && !cur) home(); });
+window.addEventListener('appinstalled', () => { deferredInstall = null; localStorage.setItem('pwaDone', '1'); toast('App installed'); if (S.mode === 'owner' && !cur) home(); });
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
 async function doInstall() {
-  if (deferredInstall) { deferredInstall.prompt(); const c = await deferredInstall.userChoice.catch(() => ({})); deferredInstall = null; if (c.outcome !== 'accepted') toast('Install baad me Settings se bhi ho sakta hai'); return; }
+  if (deferredInstall) { deferredInstall.prompt(); const c = await deferredInstall.userChoice.catch(() => ({})); deferredInstall = null; if (c.outcome !== 'accepted') toast('You can also install later from Settings'); return; }
   if (isIOS()) return iosHint();
-  modal('App install karo', h('div', {}, h('p', { class: 'sub' }, 'Browser ke menu (⋮) me "Install app" ya "Add to Home screen" dabao. Chrome me khologe to yeh option milta hai.')));
+  modal('Install the app', h('div', {}, h('p', { class: 'sub' }, 'In your browser menu (⋮), tap "Install app" or "Add to Home screen". This option appears in Chrome.')));
 }
 function iosHint() {
-  modal('iPhone me install', h('div', {}, h('p', { class: 'sub' }, 'Safari me yeh page kholo. Neeche Share (⬆︎) dabao, phir "Add to Home Screen", phir "Add".')));
+  modal('Install on iPhone', h('div', {}, h('p', { class: 'sub' }, 'Open this page in Safari. Tap Share (⬆︎) at the bottom, then "Add to Home Screen", then "Add".')));
 }
 function canOfferInstall() { return !S.readonly && !isStandalone(); }
 function installBar() {
   if (!canOfferInstall() || localStorage.getItem('pwaHide') === '1' || (!deferredInstall && !isIOS())) return null;
-  return h('div', { class: 'instbar' }, h('span', {}, 'Dayri ko app ki tarah install karo'),
+  return h('div', { class: 'instbar' }, h('span', {}, 'Install the diary like an app'),
     h('button', { class: 'btn sm', onclick: doInstall }, 'Install'),
     h('button', { class: 'ib', 'aria-label': 'hide', onclick: (e) => { localStorage.setItem('pwaHide', '1'); e.currentTarget.parentNode.remove(); } }, '×'));
 }
 function installSection() {
   if (S.readonly) return [];
-  if (isStandalone()) return [h('h3', {}, 'App'), h('p', { class: 'sub' }, 'App install hai.')];
-  return [h('h3', {}, 'App'), h('p', { class: 'sub' }, 'Home screen pe app ki tarah chalao, full screen.'), h('button', { class: 'btn sec', onclick: doInstall }, 'Install app')];
+  if (isStandalone()) return [h('h3', {}, 'App'), h('p', { class: 'sub' }, 'The app is installed.')];
+  return [h('h3', {}, 'App'), h('p', { class: 'sub' }, 'Run it from your home screen like an app, in full screen.'), h('button', { class: 'btn sec', onclick: doInstall }, 'Install app')];
 }
 
-let S = { mode: 'gate', pages: [], name: 'Meri Dayri', token: null, readonly: false, year: new Date().getFullYear(), month: null, settings: { paper: 'lined', theme: 'auto' } };
+let S = { mode: 'gate', pages: [], name: 'My Diary', token: null, readonly: false, year: new Date().getFullYear(), month: null, settings: { paper: 'lined', theme: 'auto' } };
 let cur = null; // active editor, if any
 
 function topbar(left, mid, right) { return h('div', { class: 'top' }, h('div', { class: 'l' }, left), h('div', { class: 'm' }, mid), h('div', { class: 'r' }, right)); }
@@ -458,13 +458,13 @@ const PINRE = /^(\d{4}|\d{8})$/;
 const pinKeys = (i, onEnter) => { i.onkeydown = (e) => { if (e.key === 'Backspace') { e.preventDefault(); i.value = i.value.slice(0, -1); } else if (e.key === 'Enter' && onEnter) onEnter(); }; };
 const pinCtl = (get) => h('div', { class: 'pinctl' },
   h('button', { class: 'pkey', onpointerdown: (e) => { e.preventDefault(); const i = get(); i.value = i.value.slice(0, -1); i.focus(); }, 'aria-label': 'Backspace' }, '\u232B'),
-  h('button', { class: 'pkey', onpointerdown: (e) => { e.preventDefault(); const i = get(); i.value = ''; i.focus(); }, 'aria-label': 'Clear' }, 'Saaf karo'));
+  h('button', { class: 'pkey', onpointerdown: (e) => { e.preventDefault(); const i = get(); i.value = ''; i.focus(); }, 'aria-label': 'Clear' }, 'Clear'));
 function gateOwner() {
   S.mode = 'gate'; document.title = 'Diary';
   const pw = h('input', { class: 'field pinin', type: 'password', inputmode: 'numeric', pattern: '[0-9]*', maxlength: '8', placeholder: '\u2022\u2022\u2022\u2022', autocomplete: 'current-password', 'aria-label': 'PIN' }), err = h('div', { class: 'err' });
   const go = async () => {
     err.textContent = '';
-    if (!PINRE.test(pw.value)) { err.textContent = 'PIN 4 ya 8 digits ka hota hai.'; return; }
+    if (!PINRE.test(pw.value)) { err.textContent = 'PIN must be 4 or 8 digits.'; return; }
     try {
       await api('owner/login', 'POST', { password: pw.value });
       sessionStorage.setItem('d_alive', '1');
@@ -477,35 +477,35 @@ function gateOwner() {
   pinKeys(pw, go);
   root.replaceChildren(h('div', { class: 'gate' },
     h('div', { class: 'book' }, h('div', { class: 'bookin' },
-      h('div', { class: 'btitle' }, 'Meri Dayri'),
-      h('div', { class: 'bsub' }, 'Sirf owner ke liye'),
+      h('div', { class: 'btitle' }, 'My Diary'),
+      h('div', { class: 'bsub' }, 'For the owner only'),
       lockSeal(), pw, pinCtl(() => pw), err,
-      h('button', { class: 'btn', onclick: go }, 'Kholo'))),
-    h('button', { class: 'linklike', onclick: () => resetModal() }, 'PIN bhool gaye? Reset karo')));
+      h('button', { class: 'btn', onclick: go }, 'Open'))),
+    h('button', { class: 'linklike', onclick: () => resetModal() }, 'Forgot PIN? Reset it')));
   const rl = /^#reset=([A-Za-z0-9]+)$/.exec(location.hash);
   if (rl) { history.replaceState(null, '', location.pathname); setTimeout(() => resetModal(rl[1]), 250); }
 }
 function resetModal(prefill = '') {
-  const key = h('input', { class: 'field', placeholder: 'Reset key (WhatsApp par mila)', autocomplete: 'off', value: prefill });
-  const p1 = h('input', { class: 'field', type: 'password', inputmode: 'numeric', maxlength: '8', placeholder: 'Naya PIN (4 ya 8 digits)', autocomplete: 'off' });
-  const p2 = h('input', { class: 'field', type: 'password', inputmode: 'numeric', maxlength: '8', placeholder: 'Naya PIN dobara', autocomplete: 'off' });
+  const key = h('input', { class: 'field', placeholder: 'Reset key (received on WhatsApp)', autocomplete: 'off', value: prefill });
+  const p1 = h('input', { class: 'field', type: 'password', inputmode: 'numeric', maxlength: '8', placeholder: 'New PIN (4 or 8 digits)', autocomplete: 'off' });
+  const p2 = h('input', { class: 'field', type: 'password', inputmode: 'numeric', maxlength: '8', placeholder: 'Repeat new PIN', autocomplete: 'off' });
   const err = h('div', { class: 'err' });
   let lastP = p1; p1.onfocus = () => { lastP = p1; }; p2.onfocus = () => { lastP = p2; };
   pinKeys(p1); pinKeys(p2, () => m.el.querySelector('.btn').click());
   const btn = h('button', { class: 'btn', onclick: async () => {
     err.textContent = '';
     const k = key.value.replace(/\s+/g, '');
-    if (!k) { err.textContent = 'Reset key daalo.'; return; }
-    if (!PINRE.test(p1.value)) { err.textContent = 'PIN 4 ya 8 digits ka hona chahiye.'; return; }
-    if (p1.value !== p2.value) { err.textContent = 'Dono PIN same nahi hai.'; return; }
-    btn.disabled = true; btn.textContent = 'Ek second\u2026';
+    if (!k) { err.textContent = 'Enter the reset key.'; return; }
+    if (!PINRE.test(p1.value)) { err.textContent = 'PIN must be 4 or 8 digits.'; return; }
+    if (p1.value !== p2.value) { err.textContent = 'The two PINs do not match.'; return; }
+    btn.disabled = true; btn.textContent = 'One second\u2026';
     try {
       await api('owner/reset', 'POST', { key: k, pin: p1.value });
-      sessionStorage.setItem('d_alive', '1'); m.close(); toast('Naya PIN set ho gaya'); startOwner();
-    } catch (e) { err.textContent = e.message; btn.disabled = false; btn.textContent = 'Naya PIN set karo'; }
-  } }, 'Naya PIN set karo');
+      sessionStorage.setItem('d_alive', '1'); m.close(); toast('New PIN set'); startOwner();
+    } catch (e) { err.textContent = e.message; btn.disabled = false; btn.textContent = 'Set a new PIN'; }
+  } }, 'Set a new PIN');
   const m = modal('PIN reset', h('div', {},
-    h('p', { class: 'hint' }, 'Reset key sirf ek baar chalegi. Naya PIN set hote hi purane saare login band ho jayenge.'),
+    h('p', { class: 'hint' }, 'The reset key works only once. Setting a new PIN signs out all old logins.'),
     key, p1, p2, pinCtl(() => lastP), err, btn));
 }
 async function startOwner() {
@@ -522,12 +522,12 @@ async function startOwner() {
 async function startViewer(token) {
   S.token = token; S.readonly = true; S.mode = 'viewer';
   const ok = await fetch(`/api/view/${token}/info`).then((r) => r.json()).then((j) => j.ok).catch(() => false);
-  if (!ok) return root.replaceChildren(h('div', { class: 'gate' }, lockSeal(), h('h1', {}, 'Link band hai'), h('p', { class: 'muted' }, 'Ye link band ho chuka hai ya galat hai.')));
+  if (!ok) return root.replaceChildren(h('div', { class: 'gate' }, lockSeal(), h('h1', {}, 'Link is disabled'), h('p', { class: 'muted' }, 'This link has been disabled or is wrong.')));
   try { const j = await api(`view/${token}/pages`); S.pages = j.pages; S.name = j.name; return home(true); } catch (e) { if (e.status !== 401) throw e; }
   const pin = h('input', { class: 'field', type: 'password', placeholder: 'Passcode', autocomplete: 'off' }), err = h('div', { class: 'err' });
   const go = async () => { err.textContent = ''; try { await api(`view/${token}/unlock`, 'POST', { passcode: pin.value }); const j = await api(`view/${token}/pages`); S.pages = j.pages; S.name = j.name; home(true); } catch (e) { err.textContent = e.message; } };
   pin.onkeydown = (e) => e.key === 'Enter' && go();
-  root.replaceChildren(h('div', { class: 'gate' }, lockSeal(), h('h1', {}, 'Ek private dayri'), h('p', { class: 'muted' }, 'Passcode daalo, jo tumhe diya gaya hai.'), pin, err, h('button', { class: 'btn', onclick: go }, 'Kholo')));
+  root.replaceChildren(h('div', { class: 'gate' }, lockSeal(), h('h1', {}, 'A private diary'), h('p', { class: 'muted' }, 'Enter the passcode you were given.'), pin, err, h('button', { class: 'btn', onclick: go }, 'Open')));
 }
 
 function push(state) { history.pushState(state, ''); window.scrollTo(0, 0); }
@@ -535,7 +535,7 @@ function otdSection() {
   const t = new Date(), m = t.getMonth(), dd = t.getDate(), y = t.getFullYear();
   const old = S.pages.filter((p) => { const d = parseDay(p.day); return d.getMonth() === m && d.getDate() === dd && d.getFullYear() < y; }).sort((a, b) => (a.day < b.day ? 1 : -1));
   if (!old.length) return null;
-  return h('div', { class: 'otd' }, h('p', { class: 'sub' }, '\u2728 Aaj hi ke din, pichle saal'), h('div', { class: 'cards' }, old.map(card)));
+  return h('div', { class: 'otd' }, h('p', { class: 'sub' }, '\u2728 On this day, in earlier years'), h('div', { class: 'cards' }, old.map(card)));
 }
 const fmtDay = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
 function streakInfo() {
@@ -545,14 +545,14 @@ function streakInfo() {
   while (days.has(fmtDay(t))) { streak++; t.setDate(t.getDate() - 1); }
   return streak;
 }
-const PROMPTS = ['Aaj ka sabse khoobsurat pal kaun sa tha?', 'Kis cheez ke liye aaj dil se shukriya?', 'Aaj kisne tumhe hasaya aur kyun?', 'Is hafte ka sabse bada sabak kya tha?', 'Aaj ka din ek rang hota to kaun sa?', 'Kya khabar ya kisi ki baat aaj yaad rahi?', 'Apne bachpan ki ek mithi yaad likho.', 'Aaj kuch naya sikha ya mehsoos hua?', 'Kaun sa gaana aaj dimag me ghoom raha hai?', 'Aaj kisi se kahi ek baat jo dil ko lagi.', 'Aaj ka mausam aur tumhara mood - kaisa raha?', 'Ek khwahish jo aaj phir se jagii.', 'Aaj jhoot ya sach - kisi se dil ki baat?', 'Aaj khud ke liye kya kiya?', 'Kisi purane dost ko aaj yaad kiya? Woh kaun si baat thi?', 'Aaj ka sabse mushkil aur sabse aasan kaam.', 'Ek aadat jo chhodni hai, ek jo pakadni hai.', 'Aaj ki ek chhoti si jeet likho.', 'Kal ke liye ek ummeed.', 'Aaj kisi ke saamne hasi aa gayi? Woh pal likho.', 'Ghar ki ek khushboo ya swad jo yaad aaya.', 'Aaj ka din shayari ke do lafzon me.', 'Kis cheez ka intezaar sabse zyada hai?', 'Aaj ek faisala liya? Uske peeche ki soch.', 'Kaun si jagah aaj jaane ka mann kiya?', 'Aaj paise, waqt ya pyaar - kis baat ne sochaya?', 'Ek purani photo ya message jo aaj dikha.', 'Aaj raat sone se pehle kya soch rahe ho?', 'Is mahine ka best din ab tak?', 'Aaj kis baat par gussa aaya, phir kya hua?', 'Apne aap se ek wada - aaj likh do.'];
+const PROMPTS = ['What was the most beautiful moment today?', 'What are you truly thankful for today?', 'Who made you laugh today, and why?', 'What was the biggest lesson this week?', 'If today were a colour, which would it be?', 'What news or what someone said stuck with you today?', 'Write one sweet memory from your childhood.', 'Did you learn or feel something new today?', 'Which song is stuck in your head today?', 'Something someone said today that touched you.', 'Today\u2019s weather and your mood - how was it?', 'A wish that woke up again today.', 'Did you share something from the heart with someone today?', 'What did you do for yourself today?', 'Did you think of an old friend today? What was the memory?', 'The hardest and the easiest thing you did today.', 'One habit to drop, one habit to build.', 'Write down one small win from today.', 'One hope for tomorrow.', 'Did you burst out laughing around someone today? Write that moment.', 'A smell or taste from home that you remembered.', 'Today in two lines of shayari.', 'What are you waiting for the most?', 'Did you make a decision today? The thinking behind it.', 'Which place did you feel like going to today?', 'Money, time or love - which one made you think today?', 'An old photo or message you came across today.', 'What are you thinking about before sleep tonight?', 'The best day of this month so far?', 'What made you angry today, and what happened next?', 'Make one promise to yourself and write it down.'];
 function promptBar() {
   if (S.readonly) return null;
   const now = new Date(), start = new Date(now.getFullYear(), 0, 0);
   const q = PROMPTS[Math.floor((now - start) / 86400000) % PROMPTS.length];
   const today = S.pages.find((p) => p.day === todayStr());
   return h('button', { class: 'prompt', onclick: () => (today ? openPage(today.id) : newPage()) },
-    h('span', { class: 'pl' }, 'Aaj ka sawal'), h('span', { class: 'pq' }, q));
+    h('span', { class: 'pl' }, 'Question of the day'), h('span', { class: 'pq' }, q));
 }
 function home(first) {
   if (first) history.replaceState({ v: 'home' }, '');
@@ -560,10 +560,10 @@ function home(first) {
   cur = null; document.title = S.name;
   const y = S.year, byM = (m) => S.pages.filter((p) => { const d = parseDay(p.day); return d.getFullYear() === y && d.getMonth() === m; });
   const shown = S.pages.filter((p) => { const d = parseDay(p.day); return d.getFullYear() === y && (S.month == null || d.getMonth() === S.month); }).sort((a, b) => ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)) || (a.day < b.day ? 1 : a.day > b.day ? -1 : 0));
-  const stats = (!S.readonly && S.pages.length) ? h('div', { class: 'stats' }, [streakInfo() > 1 ? streakInfo() + ' din lagatar likha' : '', S.pages.length + ' page' + (S.pages.length > 1 ? 's' : '')].filter(Boolean).join(' \u00b7 ')) : null;
+  const stats = (!S.readonly && S.pages.length) ? h('div', { class: 'stats' }, [streakInfo() > 1 ? streakInfo() + ' day streak' : '', S.pages.length + ' page' + (S.pages.length > 1 ? 's' : '')].filter(Boolean).join(' \u00b7 ')) : null;
   const tabs = h('div', { class: 'mtabs big' }, h('b', { class: S.month == null ? 'on' : '', onclick: () => { S.month = null; home(); } }, 'ALL'),
     MONTHS.map((n, i) => h('b', { class: (S.month === i ? 'on ' : '') + (byM(i).length ? 'has' : ''), onclick: () => { S.month = i; home(); } }, n)));
-  const list = shown.length ? shown.map(card) : [h('div', { class: 'empty' }, h('div', { class: 'big', html: STK.sprig }), h('p', {}, S.readonly ? 'Is mahine koi page share nahi hua.' : 'Abhi koi page nahi. Neeche + dabao aur aaj ka page likho.'))];
+  const list = shown.length ? shown.map(card) : [h('div', { class: 'empty' }, h('div', { class: 'big', html: STK.sprig }), h('p', {}, S.readonly ? 'No pages shared this month.' : 'No pages yet. Tap + below and write a page for today.'))];
   root.replaceChildren(h('div', { class: 'home' },
     topbar(null, h('div', { class: 'ttl' }, S.name), [iconBtn('search', searchScreen, 'khojo'), S.readonly ? null : iconBtn('chart', () => moodScreen(), 'mood'), themeBtn(), S.readonly ? null : iconBtn('gear', openSettings, 'settings')]),
     h('div', { class: 'yr' }, iconBtn('back', () => { S.year--; home(); }), h('b', {}, y), h('button', { class: 'ib flip', onclick: () => { S.year++; home(); }, html: IC.back })),
@@ -576,7 +576,7 @@ const isShayari = (p) => (p.tags || []).includes('shayari');
 function shayariBtn() {
   const n = S.pages.filter(isShayari).length;
   if (!n) return null;
-  return h('button', { class: 'shbtn', onclick: () => shayariScreen() }, h('span', {}, '\ud83d\udcd6 Saari Shayari'), h('small', {}, n + ' shayari'));
+  return h('button', { class: 'shbtn', onclick: () => shayariScreen() }, h('span', {}, '\ud83d\udcd6 All Shayari'), h('small', {}, n + ' shayari'));
 }
 function shayariScreen(noPush) {
   if (!noPush) push({ v: 'shayari' });
@@ -592,16 +592,16 @@ function shayariScreen(noPush) {
       h('div', { class: 'shm' }, h('div', { class: 'sht' }, body), h('div', { class: 'shd' }, d.getDate() + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear())));
   });
   root.replaceChildren(h('div', { class: 'home' },
-    topbar(iconBtn('back', () => history.back(), 'back'), h('div', { class: 'ttl' }, 'Saari Shayari'), null),
+    topbar(iconBtn('back', () => history.back(), 'back'), h('div', { class: 'ttl' }, 'All Shayari'), null),
     h('div', { class: 'stats' }, list.length + ' shayari'),
-    h('div', { class: 'shlist' }, cards.length ? cards : [h('p', { class: 'muted', style: { padding: '26px', textAlign: 'center' } }, 'Abhi koi shayari nahi.')])));
+    h('div', { class: 'shlist' }, cards.length ? cards : [h('p', { class: 'muted', style: { padding: '26px', textAlign: 'center' } }, 'No shayari yet.')])));
   window.scrollTo(0, 0);
 }
 function card(p) {
   const d = parseDay(p.day), first = p.items.find((i) => i.t === 'photo'), txt = p.items.find((i) => i.t === 'text');
   return h('button', { class: 'card' + (p.pinned ? ' pinned' : ''), onclick: () => openPage(p.id) },
     h('div', { class: 'cd' }, h('b', {}, d.getDate()), h('small', {}, MONTHS[d.getMonth()]), p.mood && MOODMAP[p.mood] ? h('i', { class: 'cmood' }, MOODMAP[p.mood][0]) : null),
-    h('div', { class: 'cm' }, h('div', { class: 'ct' }, p.title || (txt ? txt.text.split('\n')[0].slice(0, 40) : WD[d.getDay()] + ' ka page')), h('div', { class: 'cs' }, WD[d.getDay()] + ' · ' + p.items.length + ' cheezein' + (!S.readonly && p.shared ? ' · shared' : '') + ((p.tags || []).length ? ' · ' + p.tags.map((t) => '#' + t).join(' ') : ''))),
+    h('div', { class: 'cm' }, h('div', { class: 'ct' }, p.title || (txt ? txt.text.split('\n')[0].slice(0, 40) : WD[d.getDay()] + ' page')), h('div', { class: 'cs' }, WD[d.getDay()] + ' · ' + p.items.length + ' items' + (!S.readonly && p.shared ? ' · shared' : '') + ((p.tags || []).length ? ' · ' + p.tags.map((t) => '#' + t).join(' ') : ''))),
     first ? h('img', { class: 'cth', src: mediaUrl(first.mid), alt: '', loading: 'lazy' }) : h('div', { class: 'cth empty-th', html: STK.flower }));
 }
 async function newPage() {
@@ -619,7 +619,7 @@ function openPage(id, fresh, noPush) {
   const ed = editor(p, {}); cur = ed;
   root.replaceChildren(h('div', { class: 'page-screen' },
     topbar(iconBtn('back', () => history.back(), 'back'), ed.status, [themeBtn(), iconBtn('more', () => pageMenu(p, ed), 'menu')]), ed.node, ed.bar));
-  if (fresh) toast('Naya page. Neeche se kuch bhi jodo.');
+  if (fresh) toast('New page. Add anything from the bar below.');
 }
 function viewPage(p) {
   const list = S.pages.slice().sort((a, b) => (a.day < b.day ? -1 : 1)), i = list.findIndex((x) => x.id === p.id);
@@ -628,7 +628,7 @@ function viewPage(p) {
   let sx = null;
   root.replaceChildren(h('div', { class: 'page-screen read', ontouchstart: (e) => (sx = e.touches[0].clientX), ontouchend: (e) => { if (sx == null) return; const dx = e.changedTouches[0].clientX - sx; sx = null; if (dx > 90) go(i - 1); else if (dx < -90) go(i + 1); } },
     topbar(iconBtn('back', () => history.back(), 'back'), h('div', { class: 'ttl sm' }, p.title || ''), themeBtn()), h('div', { class: 'editor' }, sw),
-    h('div', { class: 'nav' }, h('button', { class: 'btn sec sm', disabled: i <= 0, onclick: () => go(i - 1) }, '‹ Pichla'), h('span', { class: 'muted' }, `${i + 1} / ${list.length}`), h('button', { class: 'btn sec sm', disabled: i >= list.length - 1, onclick: () => go(i + 1) }, 'Agla ›'))));
+    h('div', { class: 'nav' }, h('button', { class: 'btn sec sm', disabled: i <= 0, onclick: () => go(i - 1) }, '‹ Previous'), h('span', { class: 'muted' }, `${i + 1} / ${list.length}`), h('button', { class: 'btn sec sm', disabled: i >= list.length - 1, onclick: () => go(i + 1) }, 'Next ›'))));
 }
 window.addEventListener('popstate', async () => {
   if (S.mode === 'gate') return;
@@ -641,17 +641,17 @@ window.addEventListener('popstate', async () => {
 });
 
 function pageMenu(p, ed) {
-  const m = modal('Page ki settings', h('div', {},
+  const m = modal('Page settings', h('div', {},
     h('p', { class: 'sub' }, 'Date'), h('input', { class: 'field', type: 'date', value: p.day, onchange: (e) => { if (e.target.value) { p.day = e.target.value; ed.sheet.querySelector('.phead').replaceWith(pageHeader(p)); ed.changed(); } } }),
-    h('p', { class: 'sub' }, 'Title (list me dikhega)'), h('input', { class: 'field', value: p.title, maxlength: 60, placeholder: 'Optional', oninput: (e) => { p.title = e.target.value; ed.changed(); } }),
+    h('p', { class: 'sub' }, 'Title (shown in the list)'), h('input', { class: 'field', value: p.title, maxlength: 60, placeholder: 'Optional', oninput: (e) => { p.title = e.target.value; ed.changed(); } }),
     h('p', { class: 'sub' }, 'Paper'), chips({ lined: 'Lined', dots: 'Dotted', grid: 'Grid', plain: 'Plain' }, p.paper, (k) => { p.paper = k; ed.sheet.className = 'sheet editing paper-' + k; ed.changed(); }),
     h('p', { class: 'sub' }, 'Mood'), h('div', { class: 'chips' }, h('button', { class: 'chip' + (!p.mood ? ' on' : ''), onclick: (e) => { p.mood = ''; [...e.target.parentNode.children].forEach((c) => c.classList.remove('on')); e.target.classList.add('on'); ed.changed(); } }, '\u2014'), Object.entries(MOODMAP).map(([k, v]) => h('button', { class: 'chip' + (p.mood === k ? ' on' : ''), onclick: (e) => { p.mood = k; [...e.target.parentNode.children].forEach((c) => c.classList.remove('on')); e.target.classList.add('on'); ed.changed(); } }, v[0] + ' ' + v[1]))),
-    h('p', { class: 'sub' }, 'Tags (comma se alag, jaise: shayari, dost)'), h('input', { class: 'field', value: (p.tags || []).join(', '), maxlength: 200, placeholder: '#shayari #yaadein', onchange: (e) => { p.tags = e.target.value.split(',').map((t) => t.replace(/^#+/, '').trim()).filter(Boolean).slice(0, 12); e.target.value = p.tags.join(', '); ed.changed(); } }),
-    h('button', { class: 'btn sec', style: { marginTop: '14px' }, onclick: () => { m.close(); cardModal(p); } }, '\u{1F3B4} Shayari card banao (image)'),
-    h('label', { class: 'sw' }, h('input', { type: 'checkbox', checked: p.shared, onchange: (e) => { p.shared = e.target.checked; ed.changed(); } }), h('span', {}, 'Share links walon ko ye page dikhao')),
-    h('button', { class: 'btn sec', onclick: async (e) => { try { const r = await api('owner/pin', 'POST', { id: p.id }); p.pinned = r.pinned; e.target.textContent = p.pinned ? '\u2605 Pin hatayo' : '\u2606 Pin karo (list me upar)'; toast(p.pinned ? 'Page pin ho gaya' : 'Pin hat gaya'); } catch (er) { toast(er.message); } } }, (p.pinned ? '\u2605 Pin hatayo' : '\u2606 Pin karo (list me upar)')),
-    h('button', { class: 'btn danger', onclick: async () => { if (!confirm('Ye page hamesha ke liye delete karna hai?')) return; await api('owner/pages/' + p.id, 'DELETE'); S.pages = S.pages.filter((x) => x.id !== p.id); cur = null; m.close(); history.back(); } }, 'Page delete karo'),
-    h('button', { class: 'btn', onclick: () => m.close() }, 'Ho gaya')));
+    h('p', { class: 'sub' }, 'Tags (separated by commas, e.g. shayari, friends)'), h('input', { class: 'field', value: (p.tags || []).join(', '), maxlength: 200, placeholder: '#shayari #memories', onchange: (e) => { p.tags = e.target.value.split(',').map((t) => t.replace(/^#+/, '').trim()).filter(Boolean).slice(0, 12); e.target.value = p.tags.join(', '); ed.changed(); } }),
+    h('button', { class: 'btn sec', style: { marginTop: '14px' }, onclick: () => { m.close(); cardModal(p); } }, '\u{1F3B4} Make a shayari card (image)'),
+    h('label', { class: 'sw' }, h('input', { type: 'checkbox', checked: p.shared, onchange: (e) => { p.shared = e.target.checked; ed.changed(); } }), h('span', {}, 'Show this page to people with share links')),
+    h('button', { class: 'btn sec', onclick: async (e) => { try { const r = await api('owner/pin', 'POST', { id: p.id }); p.pinned = r.pinned; e.target.textContent = p.pinned ? '\u2605 Unpin' : '\u2606 Pin (keep at the top of the list)'; toast(p.pinned ? 'Page pinned' : 'Pin removed'); } catch (er) { toast(er.message); } } }, (p.pinned ? '\u2605 Unpin' : '\u2606 Pin (keep at the top of the list)')),
+    h('button', { class: 'btn danger', onclick: async () => { if (!confirm('Delete this page permanently?')) return; await api('owner/pages/' + p.id, 'DELETE'); S.pages = S.pages.filter((x) => x.id !== p.id); cur = null; m.close(); history.back(); } }, 'Delete page'),
+    h('button', { class: 'btn', onclick: () => m.close() }, 'Done')));
 }
 
 async function openSettings(noPush) {
@@ -660,31 +660,31 @@ async function openSettings(noPush) {
   let links = lk.links; S.settings = st; cur = null;
   const box = h('div', { class: 'set' });
   const draw = () => {
-    const nm = h('input', { class: 'field', value: S.name, maxlength: 40, onchange: async (e) => { S.name = e.target.value || 'Meri Dayri'; await api('owner/settings', 'POST', { name: S.name }); toast('Naam save'); } });
-    const cp = h('input', { class: 'field', type: 'password', inputmode: 'numeric', maxlength: '8', placeholder: 'Purana PIN', autocomplete: 'current-password' }), np = h('input', { class: 'field', type: 'password', inputmode: 'numeric', maxlength: '8', placeholder: 'Naya PIN (4 ya 8 digits)', autocomplete: 'new-password' });
+    const nm = h('input', { class: 'field', value: S.name, maxlength: 40, onchange: async (e) => { S.name = e.target.value || 'My Diary'; await api('owner/settings', 'POST', { name: S.name }); toast('Save name'); } });
+    const cp = h('input', { class: 'field', type: 'password', inputmode: 'numeric', maxlength: '8', placeholder: 'Current PIN', autocomplete: 'current-password' }), np = h('input', { class: 'field', type: 'password', inputmode: 'numeric', maxlength: '8', placeholder: 'New PIN (4 or 8 digits)', autocomplete: 'new-password' });
     const reload = async () => { links = (await api('owner/links')).links; draw(); };
-    const llist = links.map((l) => h('div', { class: 'lk' + (l.revoked ? ' off' : '') }, h('b', {}, l.label), h('small', {}, l.revoked ? 'band' : l.lastOpened ? 'last khola: ' + new Date(l.lastOpened).toLocaleDateString() : 'abhi khola nahi'),
+    const llist = links.map((l) => h('div', { class: 'lk' + (l.revoked ? ' off' : '') }, h('b', {}, l.label), h('small', {}, l.revoked ? 'disabled' : l.lastOpened ? 'last opened: ' + new Date(l.lastOpened).toLocaleDateString() : 'not opened yet'),
       h('div', { class: 'row wrap' },
-        h('button', { class: 'btn sm sec', onclick: async () => { try { await navigator.clipboard.writeText(l.url); toast('Link copy ho gaya'); } catch { prompt('Link copy karo', l.url); } } }, 'Copy link'),
-        h('button', { class: 'btn sm sec', onclick: async () => { const p = prompt('Naya passcode (4+ akshar). Purane log dobara passcode daalenge.'); if (!p) return; try { await api(`owner/links/${l.id}/passcode`, 'POST', { passcode: p }); toast('Passcode badal gaya'); } catch (e) { toast(e.message); } } }, 'Passcode'),
-        h('button', { class: 'btn sm sec', onclick: async () => { if (!confirm('Naya link banega, purana band ho jayega.')) return; await api(`owner/links/${l.id}/regenerate`, 'POST'); reload(); } }, 'Naya link'),
-        h('button', { class: 'btn sm sec', onclick: async () => { await api(`owner/links/${l.id}/revoke`, 'POST', { revoked: !l.revoked }); reload(); } }, l.revoked ? 'Chalu' : 'Band'),
-        h('button', { class: 'btn sm danger', onclick: async () => { if (!confirm('Ye link hamesha ke liye delete?')) return; await api('owner/links/' + l.id, 'DELETE'); reload(); } }, 'Delete'))));
-    const ll = h('input', { class: 'field', placeholder: 'Kiske liye (naam)' }), lp = h('input', { class: 'field', placeholder: 'Passcode (4+ akshar)' });
+        h('button', { class: 'btn sm sec', onclick: async () => { try { await navigator.clipboard.writeText(l.url); toast('Link copied'); } catch { prompt('Copy link', l.url); } } }, 'Copy link'),
+        h('button', { class: 'btn sm sec', onclick: async () => { const p = prompt('New passcode (4+ characters). People with the old one will need the new passcode.'); if (!p) return; try { await api(`owner/links/${l.id}/passcode`, 'POST', { passcode: p }); toast('Passcode changed'); } catch (e) { toast(e.message); } } }, 'Passcode'),
+        h('button', { class: 'btn sm sec', onclick: async () => { if (!confirm('A new link will be created and the old one will stop working.')) return; await api(`owner/links/${l.id}/regenerate`, 'POST'); reload(); } }, 'New link'),
+        h('button', { class: 'btn sm sec', onclick: async () => { await api(`owner/links/${l.id}/revoke`, 'POST', { revoked: !l.revoked }); reload(); } }, l.revoked ? 'Enable' : 'Disable'),
+        h('button', { class: 'btn sm danger', onclick: async () => { if (!confirm('Delete this link permanently?')) return; await api('owner/links/' + l.id, 'DELETE'); reload(); } }, 'Delete'))));
+    const ll = h('input', { class: 'field', placeholder: 'Who is it for (name)' }), lp = h('input', { class: 'field', placeholder: 'Passcode (4+ characters)' });
     box.replaceChildren(
       ...installSection(), h("h3", {}, "Dikhawa"), h('p', { class: 'sub' }, 'Theme'), chips({ auto: 'Auto', light: 'Light', dark: 'Dark' }, localStorage.getItem('theme') || 'auto', (k) => { applyTheme(k); api('owner/settings', 'POST', { theme: k }); }),
-      h('p', { class: 'sub' }, 'Naye page ka paper'), chips({ lined: 'Lined', dots: 'Dotted', grid: 'Grid', plain: 'Plain' }, st.paper, (k) => { S.settings.paper = k; api('owner/settings', 'POST', { paper: k }); }),
-      h('p', { class: 'sub' }, 'Dayri ka naam'), nm,
-      h('h3', {}, 'PIN'), h('p', { class: 'hint' }, 'PIN badalne par saare devices aur share links ke log dobara login karenge. PIN 4 ya 8 digits ka hona chahiye.'), cp, np,
-      h('button', { class: 'btn', onclick: async () => { try { await api('owner/password', 'POST', { current: cp.value, next: np.value }); cp.value = np.value = ''; toast('PIN badal gaya'); } catch (e) { toast(e.message, 3500); } } }, 'PIN badlo'),
-      h('h3', {}, 'Share links'), h('p', { class: 'hint' }, 'Har insaan ko alag link + passcode. Wo sirf wahi pages padh sakta hai jo tumne "share" kiye hain, kuch badal nahi sakta.'),
-      ...(llist.length ? llist : [h('p', { class: 'muted' }, 'Abhi koi link nahi.')]),
-      h('div', { class: 'newlink' }, ll, lp, h('button', { class: 'btn', onclick: async () => { try { await api('owner/links', 'POST', { label: ll.value, passcode: lp.value }); toast('Naya link ban gaya'); reload(); } catch (e) { toast(e.message); } } }, 'Naya share link banao')),
+      h('p', { class: 'sub' }, 'Paper for new pages'), chips({ lined: 'Lined', dots: 'Dotted', grid: 'Grid', plain: 'Plain' }, st.paper, (k) => { S.settings.paper = k; api('owner/settings', 'POST', { paper: k }); }),
+      h('p', { class: 'sub' }, 'Diary name'), nm,
+      h('h3', {}, 'PIN'), h('p', { class: 'hint' }, 'Changing the PIN makes all devices and share-link viewers sign in again. PIN must be 4 or 8 digits.'), cp, np,
+      h('button', { class: 'btn', onclick: async () => { try { await api('owner/password', 'POST', { current: cp.value, next: np.value }); cp.value = np.value = ''; toast('PIN changed'); } catch (e) { toast(e.message, 3500); } } }, 'Change PIN'),
+      h('h3', {}, 'Share links'), h('p', { class: 'hint' }, 'Each person gets a separate link + passcode. They can only read the pages you have shared and cannot change anything.'),
+      ...(llist.length ? llist : [h('p', { class: 'muted' }, 'No links yet.')]),
+      h('div', { class: 'newlink' }, ll, lp, h('button', { class: 'btn', onclick: async () => { try { await api('owner/links', 'POST', { label: ll.value, passcode: lp.value }); toast('New link created'); reload(); } catch (e) { toast(e.message); } } }, 'Create a new share link')),
       h('h3', {}, 'App lock'), ...lockSection(),
-      h('h3', {}, 'Roz raat yaad (reminder)'), ...remindSection(),
+      h('h3', {}, 'Nightly reminder'), ...remindSection(),
       h('h3', {}, 'Backup / Export'), ...backupSection(),
-      h('h3', {}, 'Storage'), h('p', { class: 'muted' }, `${(sg.bytes / 1024 / 1024).toFixed(1)} MB use hua, ${sg.files} files (free limit lagbhag 1 GB).`),
-      h('button', { class: 'btn sec', onclick: async () => { const r = await api('owner/storage', 'POST'); toast(`${r.removed} bekaar file hata di`); } }, 'Bekaar files saaf karo'),
+      h('h3', {}, 'Storage'), h('p', { class: 'muted' }, `${(sg.bytes / 1024 / 1024).toFixed(1)} MB used, ${sg.files} files (free limit is about 1 GB).`),
+      h('button', { class: 'btn sec', onclick: async () => { const r = await api('owner/storage', 'POST'); toast(`${r.removed} unused files removed`); } }, 'Clean up unused files'),
       h('h3', {}, 'Account'), h('button', { class: 'btn sec', onclick: async () => { sessionStorage.removeItem('d_alive'); await api('owner/logout', 'POST'); gateOwner(); } }, 'Logout'));
   };
   draw();
@@ -707,9 +707,9 @@ function searchScreen() {
       const hay = [p.title, p.day, ...(p.tags || []).map((t) => '#' + t), ...p.items.filter((i) => ['text', 'label', 'note'].includes(i.t)).map((i) => (i.text || '') + '\n' + (i.lines || ''))].join('\n').toLowerCase();
       return ql.split(/\s+/).every((w) => hay.includes(w));
     }).sort((a, b) => (a.day < b.day ? 1 : -1));
-    res.replaceChildren(...(hits.length ? hits.map(card) : [h('p', { class: 'muted', style: { padding: '26px', textAlign: 'center' } }, 'Kuch nahi mila.')]));
+    res.replaceChildren(...(hits.length ? hits.map(card) : [h('p', { class: 'muted', style: { padding: '26px', textAlign: 'center' } }, 'Nothing found.')]));
   };
-  const inp = h('input', { class: 'field', placeholder: 'Shabd, #tag ya date se dhundho…', oninput: (e) => { query = e.target.value; draw(); } });
+  const inp = h('input', { class: 'field', placeholder: 'Search by word, #tag or date…', oninput: (e) => { query = e.target.value; draw(); } });
   const chipsRow = allTags.length ? h('div', { class: 'chips', style: { margin: '10px 16px' } }, allTags.map((t) => h('button', { class: 'chip', onclick: (e) => { tag = tag === t ? null : t; [...e.target.parentNode.children].forEach((c) => c.classList.remove('on')); if (tag) e.target.classList.add('on'); draw(); } }, '#' + t))) : null;
   draw();
   root.replaceChildren(h('div', { class: 'home' }, topbar(iconBtn('back', () => history.back(), 'back'), h('div', { class: 'ttl' }, 'Khojo'), null), h('div', { style: { padding: '6px 16px 0' } }, inp), chipsRow, res));
@@ -734,7 +734,7 @@ function moodScreen(noPush) {
   const path = pts.map((p, i) => (i ? 'L' : 'M') + X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1)).join(' ');
   const svgEl = pts.length > 1
     ? `<svg viewBox="0 0 ${W2} ${H2}" class="mgraph">${[1, 2, 3, 4, 5].map((sc) => `<line x1="${pd}" y1="${Y(sc)}" x2="${W2 - pd}" y2="${Y(sc)}" class="gl"/>`).join('')}<path d="${path}" class="ml"/>${pts.map((p) => `<circle cx="${X(p[0]).toFixed(1)}" cy="${Y(p[1]).toFixed(1)}" r="4.5" class="md"/>`).join('')}</svg>`
-    : '<p class="muted">Graph ke liye kam se kam 2 din ka mood chahiye. Page settings me mood chuno.</p>';
+    : '<p class="muted">You need moods from at least 2 days for the graph. Choose a mood in page settings.</p>';
   const counts = {};
   Object.values(byDay).forEach((md) => (counts[md] = (counts[md] || 0) + 1));
   const cnt = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([md, n]) => h('span', { class: 'chip' }, MOODMAP[md][0] + ' ' + MOODMAP[md][1] + ' × ' + n));
@@ -744,7 +744,7 @@ function moodScreen(noPush) {
     topbar(iconBtn('back', () => history.back(), 'back'), h('div', { class: 'ttl' }, 'Mood'), null),
     h('div', { class: 'yr' }, iconBtn('back', prevM), h('b', {}, MFULL[m] + ' ' + y), h('button', { class: 'ib flip', html: IC.back, onclick: nextM })),
     h('div', { class: 'mcal' }, ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d) => h('span', { class: 'mc-h' }, d)), cells),
-    h('div', { class: 'set' }, h('h3', {}, 'Mood ka graph'), h('div', { html: svgEl }), h('h3', {}, 'Is mahine'), cnt.length ? h('div', { class: 'chips' }, cnt) : h('p', { class: 'muted' }, 'Is mahine koi mood nahi.'))));
+    h('div', { class: 'set' }, h('h3', {}, 'Mood graph'), h('div', { html: svgEl }), h('h3', {}, 'This month'), cnt.length ? h('div', { class: 'chips' }, cnt) : h('p', { class: 'muted' }, 'No moods this month.'))));
 }
 
 /* ---- shayari card ---- */
@@ -776,25 +776,25 @@ async function drawCard(cv, text, st, meta) {
   const lh = fs * 1.55, y0 = H2 / 2 - (lines.length - 1) * lh / 2 - 40;
   lines.forEach((l, i) => x.fillText(l, W2 / 2, y0 + i * lh));
   x.font = '34px Kalam, cursive'; x.fillStyle = st.accent;
-  x.fillText('~ ' + (meta.name || 'Meri Dayri'), W2 / 2, H2 - 150);
+  x.fillText('~ ' + (meta.name || 'My Diary'), W2 / 2, H2 - 150);
   if (meta.date) { x.font = '28px Kalam, cursive'; x.fillText(meta.date, W2 / 2, H2 - 104); }
 }
 function cardModal(p) {
   const cv = h('canvas', { class: 'cardcv', width: 1080, height: 1350 });
   const texts = p.items.filter((i) => i.t === 'text' && (i.text || '').trim());
   let style = 'parchment';
-  const ta = h('textarea', { class: 'field', rows: 6, placeholder: 'Apni shayari yahan likho…' }, texts.length ? texts[0].text : '');
+  const ta = h('textarea', { class: 'field', rows: 6, placeholder: 'Write your shayari here…' }, texts.length ? texts[0].text : '');
   const d = parseDay(p.day);
-  const redraw = () => drawCard(cv, ta.value.trim() || 'Shayari yahan likho…', CARDSTYLES[style], { name: S.name, date: d.getDate() + ' ' + MFULL[d.getMonth()] + ' ' + d.getFullYear() });
+  const redraw = () => drawCard(cv, ta.value.trim() || 'Write your shayari here…', CARDSTYLES[style], { name: S.name, date: d.getDate() + ' ' + MFULL[d.getMonth()] + ' ' + d.getFullYear() });
   ta.oninput = redraw;
-  const pickRow = texts.length > 1 ? h('div', {}, h('p', { class: 'sub' }, 'Page ka text chuno'), h('div', { class: 'chips' }, texts.map((t, i) => h('button', { class: 'chip', onclick: () => { ta.value = t.text; redraw(); } }, 'Text ' + (i + 1))))) : null;
+  const pickRow = texts.length > 1 ? h('div', {}, h('p', { class: 'sub' }, 'Choose text from the page'), h('div', { class: 'chips' }, texts.map((t, i) => h('button', { class: 'chip', onclick: () => { ta.value = t.text; redraw(); } }, 'Text ' + (i + 1))))) : null;
   const m = modal('Shayari card', h('div', {},
     pickRow, ta,
     h('p', { class: 'sub' }, 'Style'), chips(Object.fromEntries(Object.entries(CARDSTYLES).map(([k, v]) => [k, v.name])), style, (k) => { style = k; redraw(); }),
     h('div', { class: 'cardprev' }, cv),
     h('div', { class: 'row', style: { marginTop: '12px', gap: '10px' } },
-      h('button', { class: 'btn', onclick: () => cv.toBlob((b) => { const a = h('a', { href: URL.createObjectURL(b), download: 'shayari-card.png' }); document.body.append(a); a.click(); a.remove(); toast('Image download ho gayi'); }, 'image/png') }, 'Download'),
-      h('button', { class: 'btn sec', onclick: () => cv.toBlob(async (b) => { const f = new File([b], 'shayari-card.png', { type: 'image/png' }); if (navigator.canShare && navigator.canShare({ files: [f] })) { try { await navigator.share({ files: [f] }); } catch {} } else toast('Is browser me share nahi hai, download kar lo', 3500); }, 'image/png') }, 'Share'))));
+      h('button', { class: 'btn', onclick: () => cv.toBlob((b) => { const a = h('a', { href: URL.createObjectURL(b), download: 'shayari-card.png' }); document.body.append(a); a.click(); a.remove(); toast('Image downloaded'); }, 'image/png') }, 'Download'),
+      h('button', { class: 'btn sec', onclick: () => cv.toBlob(async (b) => { const f = new File([b], 'shayari-card.png', { type: 'image/png' }); if (navigator.canShare && navigator.canShare({ files: [f] })) { try { await navigator.share({ files: [f] }); } catch {} } else toast('Sharing is not available in this browser, please download instead', 3500); }, 'image/png') }, 'Share'))));
   setTimeout(redraw, 80);
 }
 
@@ -805,59 +805,59 @@ const bioAvailable = async () => { try { return !!(window.PublicKeyCredential &&
 function lockScreen() {
   const lk = lockGet();
   const pw = h('input', { class: 'field', type: 'password', inputmode: 'numeric', placeholder: 'PIN', autocomplete: 'off' }), err = h('div', { class: 'err' });
-  const go = async () => { err.textContent = ''; if (await sha256hex(lk.s + pw.value) === lk.h) { sessionStorage.setItem('d_unlock', '1'); startOwner(); } else err.textContent = 'PIN galat hai.'; };
+  const go = async () => { err.textContent = ''; if (await sha256hex(lk.s + pw.value) === lk.h) { sessionStorage.setItem('d_unlock', '1'); startOwner(); } else err.textContent = 'Wrong PIN.'; };
   pinKeys(pw, go);
   const bioBtn = localStorage.getItem('applockCred') ? h('button', { class: 'btn sec', onclick: async () => {
     try {
       const id = b64ToU8(localStorage.getItem('applockCred'));
       await navigator.credentials.get({ publicKey: { challenge: crypto.getRandomValues(new Uint8Array(32)), allowCredentials: [{ id, type: 'public-key' }], userVerification: 'required', timeout: 60000 } });
       sessionStorage.setItem('d_unlock', '1'); startOwner();
-    } catch (e) { err.textContent = 'Fingerprint nahi chala, PIN se kholo.'; }
-  } }, 'Fingerprint / Face se kholo') : null;
-  root.replaceChildren(h('div', { class: 'gate' }, lockSeal(), h('h1', {}, 'Meri Dayri'), h('p', { class: 'muted' }, 'App lock laga hai'), pw, pinCtl(() => pw), err, h('button', { class: 'btn', onclick: go }, 'Kholo'), bioBtn));
+    } catch (e) { err.textContent = 'Fingerprint did not work, unlock with your PIN.'; }
+  } }, 'Unlock with fingerprint / face') : null;
+  root.replaceChildren(h('div', { class: 'gate' }, lockSeal(), h('h1', {}, 'My Diary'), h('p', { class: 'muted' }, 'App lock is on'), pw, pinCtl(() => pw), err, h('button', { class: 'btn', onclick: go }, 'Open'), bioBtn));
   if (bioBtn && localStorage.getItem('applockAuto') === '1') setTimeout(() => bioBtn.click(), 350);
 }
 function setPinModal() {
-  const p1 = h('input', { class: 'field', type: 'password', inputmode: 'numeric', placeholder: 'Naya PIN (4-6 ank)' }), p2 = h('input', { class: 'field', type: 'password', inputmode: 'numeric', placeholder: 'PIN dobara' }), err = h('div', { class: 'err' });
+  const p1 = h('input', { class: 'field', type: 'password', inputmode: 'numeric', placeholder: 'New PIN (4-6 digits)' }), p2 = h('input', { class: 'field', type: 'password', inputmode: 'numeric', placeholder: 'Repeat PIN' }), err = h('div', { class: 'err' });
   let lastL = p1; p1.onfocus = () => { lastL = p1; }; p2.onfocus = () => { lastL = p2; };
   pinKeys(p1); pinKeys(p2);
   const m = modal('PIN lock', h('div', {}, p1, p2, pinCtl(() => lastL), err, h('button', { class: 'btn', onclick: async () => {
-    if (!/^\d{4,6}$/.test(p1.value)) return err.textContent = 'PIN 4 se 6 ank ka rakho.';
-    if (p1.value !== p2.value) return err.textContent = 'Dono PIN same nahi hain.';
+    if (!/^\d{4,6}$/.test(p1.value)) return err.textContent = 'PIN must be 4 to 6 digits.';
+    if (p1.value !== p2.value) return err.textContent = 'The two PINs do not match.';
     const salt = Math.random().toString(36).slice(2);
     localStorage.setItem('applock', JSON.stringify({ s: salt, h: await sha256hex(salt + p1.value) }));
-    m.close(); toast('App lock lag gaya');
+    m.close(); toast('App lock turned on');
     if (await bioAvailable()) addBio(); else openSettings(true);
-  } }, 'Lagao')));
+  } }, 'Set')));
 }
 async function addBio() {
-  if (!await bioAvailable()) { toast('Is browser me fingerprint lock nahi hai, PIN hi kaam karega', 4000); return openSettings(true); }
+  if (!await bioAvailable()) { toast('Fingerprint lock is not available in this browser, PIN only', 4000); return openSettings(true); }
   try {
-    const cred = await navigator.credentials.create({ publicKey: { challenge: crypto.getRandomValues(new Uint8Array(32)), rp: { name: 'Meri Dayri' }, user: { id: crypto.getRandomValues(new Uint8Array(16)), name: 'owner', displayName: 'Owner' }, pubKeyCredParams: [{ alg: -7, type: 'public-key' }, { alg: -257, type: 'public-key' }], authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required' }, timeout: 60000 } });
+    const cred = await navigator.credentials.create({ publicKey: { challenge: crypto.getRandomValues(new Uint8Array(32)), rp: { name: 'My Diary' }, user: { id: crypto.getRandomValues(new Uint8Array(16)), name: 'owner', displayName: 'Owner' }, pubKeyCredParams: [{ alg: -7, type: 'public-key' }, { alg: -257, type: 'public-key' }], authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required' }, timeout: 60000 } });
     localStorage.setItem('applockCred', btoa(String.fromCharCode(...new Uint8Array(cred.rawId))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''));
     localStorage.setItem('applockAuto', '1');
-    toast('Fingerprint lock jud gaya');
-  } catch (e) { toast('Fingerprint nahi juda'); }
+    toast('Fingerprint lock added');
+  } catch (e) { toast('Could not add fingerprint'); }
   openSettings(true);
 }
 function lockSection() {
   const lk = lockGet();
-  if (!lk) return [h('p', { class: 'hint' }, 'Phone koi aur uthaye to dayri na khule. Har baar kholne par PIN, chahe to fingerprint/face bhi.'), h('button', { class: 'btn sec', onclick: setPinModal }, 'PIN lock lagao')];
-  return [h('p', { class: 'hint' }, 'App lock chalu hai. Har baar app kholne par PIN mangega (owner password ke alawa).'),
+  if (!lk) return [h('p', { class: 'hint' }, 'Keeps the diary closed if someone else picks up your phone. PIN every time you open it, with optional fingerprint/face.'), h('button', { class: 'btn sec', onclick: setPinModal }, 'Turn on PIN lock')];
+  return [h('p', { class: 'hint' }, 'App lock is on. It asks for the PIN every time you open the app (in addition to the owner password).'),
     h('div', { class: 'row wrap' },
-      localStorage.getItem('applockCred') ? h('button', { class: 'btn sm sec', disabled: true }, 'Fingerprint juda hua ✓') : h('button', { class: 'btn sm sec', onclick: addBio }, 'Fingerprint jodo'),
-      h('button', { class: 'btn sm sec', onclick: () => { sessionStorage.removeItem('d_unlock'); lockScreen(); } }, 'Abhi lock karo'),
-      h('button', { class: 'btn sm danger', onclick: async () => { const p = prompt('Lock hatane ke liye PIN daalo'); if (!p) return; if (await sha256hex(lk.s + p) !== lk.h) return toast('PIN galat hai'); localStorage.removeItem('applock'); localStorage.removeItem('applockCred'); localStorage.removeItem('applockAuto'); toast('App lock hata diya'); openSettings(true); } }, 'Lock hatao'))];
+      localStorage.getItem('applockCred') ? h('button', { class: 'btn sm sec', disabled: true }, 'Fingerprint added ✓') : h('button', { class: 'btn sm sec', onclick: addBio }, 'Add fingerprint'),
+      h('button', { class: 'btn sm sec', onclick: () => { sessionStorage.removeItem('d_unlock'); lockScreen(); } }, 'Lock now'),
+      h('button', { class: 'btn sm danger', onclick: async () => { const p = prompt('Enter your PIN to remove the lock'); if (!p) return; if (await sha256hex(lk.s + p) !== lk.h) return toast('Wrong PIN'); localStorage.removeItem('applock'); localStorage.removeItem('applockCred'); localStorage.removeItem('applockAuto'); toast('App lock removed'); openSettings(true); } }, 'Remove lock'))];
 }
 
 /* ---- reminder ---- */
 function remindSection() {
   const st = h('p', { class: 'muted' }, '…');
-  api('owner/push').then((r) => { st.textContent = r.on ? 'Chalu hai: har raat 9 baje notification aayegi, app band ho tab bhi.' : (localStorage.getItem('remindLocal') === '1' ? 'Chalu hai: app kholne par shaam ko yaad dilayega (is browser me push nahi).' : 'Band hai.'); }).catch(() => { st.textContent = ''; });
-  return [h('p', { class: 'hint' }, 'Agar aaj ka page nahi likha to raat 9 baje yaad.'), st,
+  api('owner/push').then((r) => { st.textContent = r.on ? 'On: you will get a notification every night at 9 PM, even when the app is closed.' : (localStorage.getItem('remindLocal') === '1' ? 'On: the app will remind you in the evening when you open it (push is not available in this browser).' : 'Off.'); }).catch(() => { st.textContent = ''; });
+  return [h('p', { class: 'hint' }, 'Reminds you at 9 PM if you have not written a page today.'), st,
     h('div', { class: 'row wrap' },
-      h('button', { class: 'btn sm sec', onclick: enableReminder }, 'Yaad chalu karo'),
-      h('button', { class: 'btn sm sec', onclick: disableReminder }, 'Band karo'))];
+      h('button', { class: 'btn sm sec', onclick: enableReminder }, 'Turn on reminder'),
+      h('button', { class: 'btn sm sec', onclick: disableReminder }, 'Turn off'))];
 }
 async function enableReminder() {
   try {
@@ -869,17 +869,17 @@ async function enableReminder() {
     const { key } = await api('owner/vapid');
     const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToU8(key) });
     await api('owner/push', 'POST', { sub: sub.toJSON() });
-    toast('Raat 9 baje ki yaad chalu ho gayi');
+    toast('9 PM reminder turned on');
   } catch (e) {
     localStorage.setItem('remindLocal', '1');
-    toast('Is browser me push nahi chalta; app kholne par shaam ko yaad dilayenge', 4500);
+    toast('Push is not supported in this browser; the app will remind you in the evening when you open it', 4500);
   }
   openSettings(true);
 }
 async function disableReminder() {
   localStorage.removeItem('remindLocal');
   try { const reg = await navigator.serviceWorker.ready; const sub = await reg.pushManager.getSubscription(); if (sub) { await api('owner/push', 'DELETE', { endpoint: sub.endpoint }); await sub.unsubscribe(); } } catch {}
-  toast('Yaad band ho gayi'); openSettings(true);
+  toast('Reminder turned off'); openSettings(true);
 }
 function localRemindCheck() {
   if (S.readonly || localStorage.getItem('remindLocal') !== '1') return;
@@ -888,8 +888,8 @@ function localRemindCheck() {
   if (S.pages.some((p) => p.day === today)) return;
   if (localStorage.getItem('remindDone') === today) return;
   localStorage.setItem('remindDone', today);
-  if ('Notification' in window && Notification.permission === 'granted') new Notification('Meri Dayri', { body: 'Aaj ka page likhna baaki hai' });
-  else toast('Aaj ka page likhna baaki hai ✍️', 5000);
+  if ('Notification' in window && Notification.permission === 'granted') new Notification('My Diary', { body: 'Your page for today is still unwritten' });
+  else toast('Your page for today is still unwritten ✍️', 5000);
 }
 
 /* ---- backup / export ---- */
@@ -914,14 +914,14 @@ function zipStore(files) {
   return new Blob([...parts, ...central, new Uint8Array(end.buffer)], { type: 'application/zip' });
 }
 function backupSection() {
-  return [h('p', { class: 'hint' }, 'Saare pages + photos/videos/gaane ek ZIP file me download karo, ya PDF banao. Apne paas sambhal ke rakho.'),
+  return [h('p', { class: 'hint' }, 'Download all pages + photos/videos/songs as one ZIP file, or make a PDF. Keep it somewhere safe.'),
     h('div', { class: 'row wrap' },
       h('button', { class: 'btn sm sec', onclick: doBackup }, 'Backup download (ZIP)'),
       h('button', { class: 'btn sm sec', onclick: () => exportScreen() }, 'PDF / Print'))];
 }
 async function doBackup() {
   try {
-    toast('Backup ban raha hai…', 60000);
+    toast('Making backup…', 60000);
     const data = await api('owner/export');
     const files = [{ name: 'dayri-data.json', data: new TextEncoder().encode(JSON.stringify(data, null, 2)) }];
     const ids = [...new Set(data.pages.flatMap((p) => mediaIds(p.items)))];
@@ -938,30 +938,30 @@ async function doBackup() {
     }
     const blob = zipStore(files);
     const a = h('a', { href: URL.createObjectURL(blob), download: 'dayri-backup-' + todayStrLocal() + '.zip' }); document.body.append(a); a.click(); a.remove();
-    toast(`Backup taiyaar (${(blob.size / 1024 / 1024).toFixed(1)} MB, ${files.length - 1} media files)`, 5000);
-  } catch (e) { toast('Backup nahi bana: ' + e.message, 4000); }
+    toast(`Backup ready (${(blob.size / 1024 / 1024).toFixed(1)} MB, ${files.length - 1} media files)`, 5000);
+  } catch (e) { toast('Backup failed: ' + e.message, 4000); }
 }
 function exportScreen() {
   push({ v: 'export' });
   const nowD = new Date();
-  const ranges = { all: 'Sab pages', year: 'Ye saal (' + nowD.getFullYear() + ')', month: 'Ye mahina' };
+  const ranges = { all: 'All pages', year: 'This year (' + nowD.getFullYear() + ')', month: 'This month' };
   let range = 'all';
   const box = h('div', { class: 'printpages' });
   const draw = () => {
     const ps = S.pages.filter((p) => { const d = parseDay(p.day); if (range === 'year') return d.getFullYear() === nowD.getFullYear(); if (range === 'month') return d.getFullYear() === nowD.getFullYear() && d.getMonth() === nowD.getMonth(); return true; }).sort((a, b) => (a.day < b.day ? -1 : 1));
-    box.replaceChildren(...(ps.length ? ps.map((p) => h('div', { class: 'printpage' }, renderSheet(p, {}))) : [h('p', { class: 'muted', style: { padding: '30px', textAlign: 'center' } }, 'Is range me koi page nahi.')]));
+    box.replaceChildren(...(ps.length ? ps.map((p) => h('div', { class: 'printpage' }, renderSheet(p, {}))) : [h('p', { class: 'muted', style: { padding: '30px', textAlign: 'center' } }, 'No pages in this range.')]));
   };
   draw();
   root.replaceChildren(h('div', { class: 'home exportscreen' },
     topbar(iconBtn('back', () => history.back(), 'back'), h('div', { class: 'ttl' }, 'PDF / Print'), null),
-    h('div', { class: 'set noprint' }, h('p', { class: 'hint' }, 'Neeche pages taiyar hain. "Print karo" dabao aur destination me "Save as PDF" chuno.'), chips(ranges, range, (k) => { range = k; draw(); }), h('button', { class: 'btn printbtn', onclick: () => window.print() }, 'Print karo / PDF banao')),
+    h('div', { class: 'set noprint' }, h('p', { class: 'hint' }, 'Pages are ready below. Tap "Print" and choose "Save as PDF" as the destination.'), chips(ranges, range, (k) => { range = k; draw(); }), h('button', { class: 'btn printbtn', onclick: () => window.print() }, 'Print / Save as PDF')),
     box));
 }
 
 (function boot() {
   const p = location.pathname;
   const mm = /^\/r\/([\w-]{8,64})/.exec(p);
-  if (mm) return startViewer(mm[1]).catch(() => toast('Kuch gadbad hui'));
+  if (mm) return startViewer(mm[1]).catch(() => toast('Something went wrong'));
   if (p === '/owner') return startOwner().catch(() => gateOwner());
-  root.replaceChildren(h('div', { class: 'gate' }, lockSeal(), h('h1', {}, 'Private dayri'), h('p', { class: 'muted' }, 'Ye ek niji dayri hai. Link ke bina yahan kuch nahi hai.')));
+  root.replaceChildren(h('div', { class: 'gate' }, lockSeal(), h('h1', {}, 'Private diary'), h('p', { class: 'muted' }, 'This is a private diary. There is nothing here without the link.')));
 })();
