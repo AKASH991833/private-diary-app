@@ -142,3 +142,24 @@ input[type=range]{width:100%;accent-color:var(--accd)}
   .printpage{page-break-after:always;margin:0 auto}
   .home{padding-bottom:0}
 }
+
+/* book-cover gate */
+.gate{min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:26px 20px;text-align:center}
+.book{width:min(330px,88vw);aspect-ratio:3/4.1;border-radius:8px 18px 18px 8px;position:relative;background:linear-gradient(135deg,#8a5a3b,#6e422a 55%,#5d3722);box-shadow:var(--shadow),inset 0 0 0 1px rgba(0,0,0,.18);display:flex}
+.book::before{content:'';position:absolute;left:0;top:0;bottom:0;width:14px;border-radius:8px 0 0 8px;background:linear-gradient(90deg,rgba(0,0,0,.38),rgba(255,255,255,.09) 60%,rgba(0,0,0,.22))}
+.bookin{flex:1;margin:16px 14px 16px 26px;border:1.5px solid rgba(255,235,200,.35);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:18px}
+.btitle{font:700 34px "Bodoni Moda",Georgia,serif;color:#f3e3c2;letter-spacing:1px;text-shadow:0 1px 0 rgba(0,0,0,.45),0 -1px 1px rgba(255,255,255,.15)}
+.bsub{font-size:12px;color:#e2cda5;opacity:.85;letter-spacing:.4px;margin-top:-8px}
+.book .seal{background:rgba(255,240,210,.12);color:#f3e3c2;box-shadow:none;margin:4px 0 0}
+.pinin{max-width:180px;text-align:center;font-size:22px;letter-spacing:8px;text-indent:8px;background:rgba(255,244,220,.92);color:#3a2a1c}
+.book .err{color:#ffd9c9;min-height:18px;font-size:12.5px;margin:-4px 0}
+.book .btn{background:#f3e3c2;color:#5d3722;box-shadow:0 2px 0 rgba(0,0,0,.25)}
+.linklike{background:none;border:0;color:var(--mute);font:inherit;font-size:13px;text-decoration:underline;cursor:pointer;padding:6px}
+[data-theme=dark] .book{background:linear-gradient(135deg,#3a2c22,#241a13 55%,#1a120c)}
+[data-theme=dark] .bookin{border-color:rgba(230,194,122,.28)}
+[data-theme=dark] .btitle{color:#e6c27a}
+[data-theme=dark] .bsub{color:#cbb27f}
+[data-theme=dark] .book .seal{color:#e6c27a;background:rgba(230,194,122,.1)}
+[data-theme=dark] .pinin{background:rgba(20,16,12,.6);color:#f0e2c4}
+[data-theme=dark] .book .btn{background:#e6c27a;color:#241a13}
+[data-theme=dark] .book .err{color:#f0b9a4}

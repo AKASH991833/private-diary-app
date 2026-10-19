@@ -452,12 +452,43 @@ function themeBtn() {
 }
 const lockSeal = () => h('div', { class: 'seal', html: IC.lock });
 
+const PINRE = /^(\d{4}|\d{8})$/;
 function gateOwner() {
   S.mode = 'gate'; document.title = 'Diary';
-  const pw = h('input', { class: 'field', type: 'password', placeholder: 'Password', autocomplete: 'current-password' }), err = h('div', { class: 'err' });
-  const go = async () => { err.textContent = ''; try { await api('owner/login', 'POST', { password: pw.value }); sessionStorage.setItem('d_alive', '1'); startOwner(); } catch (e) { err.textContent = e.message; } };
+  const pw = h('input', { class: 'field pinin', type: 'password', inputmode: 'numeric', pattern: '[0-9]*', maxlength: '8', placeholder: '\u2022\u2022\u2022\u2022', autocomplete: 'current-password', 'aria-label': 'PIN' }), err = h('div', { class: 'err' });
+  const go = async () => {
+    err.textContent = '';
+    if (!PINRE.test(pw.value)) { err.textContent = 'PIN 4 ya 8 digits ka hota hai.'; return; }
+    try { await api('owner/login', 'POST', { password: pw.value }); sessionStorage.setItem('d_alive', '1'); startOwner(); }
+    catch (e) { err.textContent = e.message; pw.value = ''; }
+  };
   pw.onkeydown = (e) => e.key === 'Enter' && go();
-  root.replaceChildren(h('div', { class: 'gate' }, lockSeal(), h('h1', {}, 'Meri Dayri'), h('p', { class: 'muted' }, 'Sirf owner ke liye'), pw, err, h('button', { class: 'btn', onclick: go }, 'Kholo')));
+  root.replaceChildren(h('div', { class: 'gate' },
+    h('div', { class: 'book' }, h('div', { class: 'bookin' },
+      h('div', { class: 'btitle' }, 'Meri Dayri'),
+      h('div', { class: 'bsub' }, 'Sirf owner ke liye'),
+      lockSeal(), pw, err,
+      h('button', { class: 'btn', onclick: go }, 'Kholo'))),
+    h('button', { class: 'linklike', onclick: resetModal }, 'PIN bhool gaye? Reset karo')));
+}
+function resetModal() {
+  const key = h('input', { class: 'field', placeholder: 'Reset key (WhatsApp par mila)', autocomplete: 'off' });
+  const p1 = h('input', { class: 'field', type: 'password', inputmode: 'numeric', maxlength: '8', placeholder: 'Naya PIN (4 ya 8 digits)', autocomplete: 'off' });
+  const p2 = h('input', { class: 'field', type: 'password', inputmode: 'numeric', maxlength: '8', placeholder: 'Naya PIN dobara', autocomplete: 'off' });
+  const err = h('div', { class: 'err' });
+  const m = modal('PIN reset', h('div', {},
+    h('p', { class: 'hint' }, 'Reset key sirf ek baar chalegi. Naya PIN set hote hi purane saare login band ho jayenge.'),
+    key, p1, p2, err,
+    h('button', { class: 'btn', onclick: async () => {
+      err.textContent = '';
+      if (!key.value.trim()) { err.textContent = 'Reset key daalo.'; return; }
+      if (!PINRE.test(p1.value)) { err.textContent = 'PIN 4 ya 8 digits ka hona chahiye.'; return; }
+      if (p1.value !== p2.value) { err.textContent = 'Dono PIN same nahi hai.'; return; }
+      try {
+        await api('owner/reset', 'POST', { key: key.value.trim(), pin: p1.value });
+        sessionStorage.setItem('d_alive', '1'); m.close(); toast('Naya PIN set ho gaya'); startOwner();
+      } catch (e) { err.textContent = e.message; }
+    } }, 'Naya PIN set karo')));
 }
 async function startOwner() {
   if (!sessionStorage.getItem('d_alive')) { try { await api('owner/logout', 'POST'); } catch {} return gateOwner(); }
@@ -565,7 +596,7 @@ async function openSettings(noPush) {
   const box = h('div', { class: 'set' });
   const draw = () => {
     const nm = h('input', { class: 'field', value: S.name, maxlength: 40, onchange: async (e) => { S.name = e.target.value || 'Meri Dayri'; await api('owner/settings', 'POST', { name: S.name }); toast('Naam save'); } });
-    const cp = h('input', { class: 'field', type: 'password', placeholder: 'Purana password', autocomplete: 'current-password' }), np = h('input', { class: 'field', type: 'password', placeholder: 'Naya password (8+ akshar)', autocomplete: 'new-password' });
+    const cp = h('input', { class: 'field', type: 'password', inputmode: 'numeric', maxlength: '8', placeholder: 'Purana PIN', autocomplete: 'current-password' }), np = h('input', { class: 'field', type: 'password', inputmode: 'numeric', maxlength: '8', placeholder: 'Naya PIN (4 ya 8 digits)', autocomplete: 'new-password' });
     const reload = async () => { links = (await api('owner/links')).links; draw(); };
     const llist = links.map((l) => h('div', { class: 'lk' + (l.revoked ? ' off' : '') }, h('b', {}, l.label), h('small', {}, l.revoked ? 'band' : l.lastOpened ? 'last khola: ' + new Date(l.lastOpened).toLocaleDateString() : 'abhi khola nahi'),
       h('div', { class: 'row wrap' },
@@ -579,8 +610,8 @@ async function openSettings(noPush) {
       ...installSection(), h("h3", {}, "Dikhawa"), h('p', { class: 'sub' }, 'Theme'), chips({ auto: 'Auto', light: 'Light', dark: 'Dark' }, localStorage.getItem('theme') || 'auto', (k) => { applyTheme(k); api('owner/settings', 'POST', { theme: k }); }),
       h('p', { class: 'sub' }, 'Naye page ka paper'), chips({ lined: 'Lined', dots: 'Dotted', grid: 'Grid', plain: 'Plain' }, st.paper, (k) => { S.settings.paper = k; api('owner/settings', 'POST', { paper: k }); }),
       h('p', { class: 'sub' }, 'Dayri ka naam'), nm,
-      h('h3', {}, 'Password'), h('p', { class: 'hint' }, 'Password badalne par saare devices aur share links ke log dobara login karenge.'), cp, np,
-      h('button', { class: 'btn', onclick: async () => { try { await api('owner/password', 'POST', { current: cp.value, next: np.value }); cp.value = np.value = ''; toast('Password badal gaya'); } catch (e) { toast(e.message, 3500); } } }, 'Password badlo'),
+      h('h3', {}, 'PIN'), h('p', { class: 'hint' }, 'PIN badalne par saare devices aur share links ke log dobara login karenge. PIN 4 ya 8 digits ka hona chahiye.'), cp, np,
+      h('button', { class: 'btn', onclick: async () => { try { await api('owner/password', 'POST', { current: cp.value, next: np.value }); cp.value = np.value = ''; toast('PIN badal gaya'); } catch (e) { toast(e.message, 3500); } } }, 'PIN badlo'),
       h('h3', {}, 'Share links'), h('p', { class: 'hint' }, 'Har insaan ko alag link + passcode. Wo sirf wahi pages padh sakta hai jo tumne "share" kiye hain, kuch badal nahi sakta.'),
       ...(llist.length ? llist : [h('p', { class: 'muted' }, 'Abhi koi link nahi.')]),
       h('div', { class: 'newlink' }, ll, lp, h('button', { class: 'btn', onclick: async () => { try { await api('owner/links', 'POST', { label: ll.value, passcode: lp.value }); toast('Naya link ban gaya'); reload(); } catch (e) { toast(e.message); } } }, 'Naya share link banao')),

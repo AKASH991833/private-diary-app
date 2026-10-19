@@ -1,7 +1,9 @@
 const crypto = require('crypto');
 const { q } = require('./db');
 
-const MAX_FAILS = 6, LOCK_MS = 15 * 60 * 1000;
+const MAX_FAILS = 5, LOCK_MS = 15 * 60 * 1000;
+const PIN_RE = /^(\d{4}|\d{8})$/;
+const RESET_HASH = process.env.RESET_HASH || '0657c6e4f060862222274b2392d95968aa7a724792bc90d93093c0d5577318db'; // sha256 of the one-time reset key (key itself never stored)
 const COOKIE_DAYS_OWNER = 14, COOKIE_DAYS_VIEWER = 30;
 const MOODS = ['khush', 'udaas', 'shaant', 'gussa', 'pyaar', 'thakaan', 'umeed', 'yaad'];
 const FONTS = ['kalam', 'caveat', 'yatra'];
@@ -62,12 +64,12 @@ async function guard(key) {
   if (r.length && Number(r[0].until_at) > now()) return Math.ceil((Number(r[0].until_at) - now()) / 60000);
   return 0;
 }
-async function fail(key) {
+async function fail(key, maxFails = MAX_FAILS, lockMs = LOCK_MS) {
   const r = await q('SELECT n FROM diary_attempts WHERE k = ?', [key]);
   const n = (r.length ? Number(r[0].n) : 0) + 1;
-  const until = n >= MAX_FAILS ? now() + LOCK_MS : 0;
+  const until = n >= maxFails ? now() + lockMs : 0;
   await q('DELETE FROM diary_attempts WHERE k = ?', [key]);
-  await q('INSERT INTO diary_attempts (k, n, until_at) VALUES (?, ?, ?)', [key, n >= MAX_FAILS ? 0 : n, until]);
+  await q('INSERT INTO diary_attempts (k, n, until_at) VALUES (?, ?, ?)', [key, n >= maxFails ? 0 : n, until]);
 }
 const okReset = (key) => q('DELETE FROM diary_attempts WHERE k = ?', [key]);
 
@@ -167,16 +169,33 @@ module.exports = async (req, res) => {
     // ---------- owner ----------
     if (parts[0] === 'owner') {
       if (parts[1] === 'login' && method === 'POST') {
-        const key = 'owner:' + ip(req);
-        const wait = await guard(key);
-        if (wait) return send(res, 429, { error: `Bahut galat try. ${wait} min baad try karo.` });
+        const key = 'owner:' + ip(req), gkey = 'owner:global';
+        const w = Math.max(await guard(key), await guard(gkey));
+        if (w) return send(res, 429, { error: `Bahut galat try. ${w} min baad try karo.` });
         const okPw = await checkOwnerPassword(String(body.password || ''));
-        if (!okPw) { await fail(key); return send(res, 401, { error: 'Password galat hai.' }); }
-        await okReset(key);
+        if (!okPw) { await fail(key); await fail(gkey, 25, 30 * 60000); return send(res, 401, { error: 'PIN galat hai.' }); }
+        await okReset(key); await okReset(gkey);
         setSessionCookie(res, 'od', await sign({ role: 'owner', exp: now() + COOKIE_DAYS_OWNER * 86400000 }));
         return send(res, 200, { ok: true });
       }
       if (parts[1] === 'logout') { clearCookie(res, 'od'); return send(res, 200, { ok: true }); }
+      // One-time PIN reset: needs the secret key (only its sha256 lives here). Self-disables after one success.
+      if (parts[1] === 'reset' && method === 'POST') {
+        if (await getSet('reset_done')) return send(res, 410, { error: 'Reset ab band ho chuka hai.' });
+        const key = 'reset:' + ip(req), gkey = 'reset:global';
+        const w = Math.max(await guard(key), await guard(gkey));
+        if (w) return send(res, 429, { error: `Bahut galat try. ${w} min baad try karo.` });
+        if (!safeEq(sha(String(body.key || '')), RESET_HASH)) { await fail(key); await fail(gkey, 10, 60 * 60000); return send(res, 403, { error: 'Reset key galat hai.' }); }
+        const np = String(body.pin || '');
+        if (!PIN_RE.test(np)) return send(res, 400, { error: 'PIN 4 ya 8 digits ka hona chahiye.' });
+        const salt = rid(12);
+        await setSet('pw_salt', salt); await setSet('pw_hash', scrypt(np, salt));
+        await setSet('reset_done', '1');
+        await setSet('session_secret', crypto.randomBytes(32).toString('hex')); // purane saare sessions khatam
+        await okReset(key); await okReset(gkey);
+        setSessionCookie(res, 'od', await sign({ role: 'owner', exp: now() + COOKIE_DAYS_OWNER * 86400000 }));
+        return send(res, 200, { ok: true });
+      }
       if (parts[1] === 'me') return send(res, 200, { owner: await isOwner(req) });
       if (!(await isOwner(req))) return send(res, 401, { error: 'login karo' });
 
@@ -193,9 +212,9 @@ module.exports = async (req, res) => {
         const key = 'pw:' + ip(req);
         const wait = await guard(key);
         if (wait) return send(res, 429, { error: `Bahut galat try. ${wait} min baad try karo.` });
-        if (!(await checkOwnerPassword(String(body.current || '')))) { await fail(key); return send(res, 401, { error: 'Purana password galat hai.' }); }
+        if (!(await checkOwnerPassword(String(body.current || '')))) { await fail(key); return send(res, 401, { error: 'Purana PIN galat hai.' }); }
         const np = String(body.next || '');
-        if (np.length < 8 || np.length > 64) return send(res, 400, { error: 'Naya password 8 se 64 akshar ka rakho.' });
+        if (!PIN_RE.test(np)) return send(res, 400, { error: 'Naya PIN 4 ya 8 digits ka hona chahiye.' });
         await okReset(key);
         const salt = rid(12);
         await setSet('pw_salt', salt); await setSet('pw_hash', scrypt(np, salt));
