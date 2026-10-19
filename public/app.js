@@ -321,8 +321,8 @@ function editor(page, ctx) {
     if (['text', 'label', 'note', 'music'].includes(it.t)) b.push(btn('edit', 'Edit', () => ed.edit(it)));
     if (it.t === 'photo' || it.t === 'video') b.push(btn('frame', 'Frame', () => frameModal(it, ed)));
     if (it.t === 'tape') b.push(btn('paper', 'Colour', () => { it.c = TAPES[(TAPES.indexOf(it.c) + 1) % TAPES.length]; ed.redraw(it); ed.changed(); }));
-    b.push(btn('up', 'Aage', () => { it.z = maxZ() + 1; applyBox(el(it.id), it); ed.changed(); }),
-      btn('down', 'Peeche', () => { it.z = Math.max(1, Math.min(...page.items.map((i) => i.z || 1)) - 1); applyBox(el(it.id), it); ed.changed(); }),
+    b.push(btn('up', 'Bring forward', () => { it.z = maxZ() + 1; applyBox(el(it.id), it); ed.changed(); }),
+      btn('down', 'Send back', () => { it.z = Math.max(1, Math.min(...page.items.map((i) => i.z || 1)) - 1); applyBox(el(it.id), it); ed.changed(); }),
       btn('copy', 'Copy', () => { const c = JSON.parse(JSON.stringify(it)); c.id = uid(); c.x += 18; c.y += 18; c.z = maxZ() + 1; page.items.push(c); sheet._mount(c); ed.select(c.id); ed.changed(); }),
       btn('trash', 'Delete', () => { if (!confirm('Remove this?')) return; page.items = page.items.filter((i) => i.id !== it.id); el(it.id).remove(); sheet._els.delete(it.id); ed.sel = null; drawBar(); ed.changed(); }, 'danger'),
       h('button', { class: 'tb done', onclick: () => ed.select(null) }, 'Done'));
@@ -565,7 +565,7 @@ function home(first) {
     MONTHS.map((n, i) => h('b', { class: (S.month === i ? 'on ' : '') + (byM(i).length ? 'has' : ''), onclick: () => { S.month = i; home(); } }, n)));
   const list = shown.length ? shown.map(card) : [h('div', { class: 'empty' }, h('div', { class: 'big', html: STK.sprig }), h('p', {}, S.readonly ? 'No pages shared this month.' : 'No pages yet. Tap + below and write a page for today.'))];
   root.replaceChildren(h('div', { class: 'home' },
-    topbar(null, h('div', { class: 'ttl' }, S.name), [iconBtn('search', searchScreen, 'khojo'), S.readonly ? null : iconBtn('chart', () => moodScreen(), 'mood'), themeBtn(), S.readonly ? null : iconBtn('gear', openSettings, 'settings')]),
+    topbar(null, h('div', { class: 'ttl' }, S.name), [iconBtn('search', searchScreen, 'search'), S.readonly ? null : iconBtn('chart', () => moodScreen(), 'mood'), themeBtn(), S.readonly ? null : iconBtn('gear', openSettings, 'settings')]),
     h('div', { class: 'yr' }, iconBtn('back', () => { S.year--; home(); }), h('b', {}, y), h('button', { class: 'ib flip', onclick: () => { S.year++; home(); }, html: IC.back })),
     installBar(), shayariBtn(), tabs, stats, promptBar(), otdSection(), h('div', { class: 'cards' }, list),
     S.readonly ? null : h('button', { class: 'fab', onclick: newPage, 'aria-label': 'new page' }, ico('plus'))));
@@ -672,7 +672,7 @@ async function openSettings(noPush) {
         h('button', { class: 'btn sm danger', onclick: async () => { if (!confirm('Delete this link permanently?')) return; await api('owner/links/' + l.id, 'DELETE'); reload(); } }, 'Delete'))));
     const ll = h('input', { class: 'field', placeholder: 'Who is it for (name)' }), lp = h('input', { class: 'field', placeholder: 'Passcode (4+ characters)' });
     box.replaceChildren(
-      ...installSection(), h("h3", {}, "Dikhawa"), h('p', { class: 'sub' }, 'Theme'), chips({ auto: 'Auto', light: 'Light', dark: 'Dark' }, localStorage.getItem('theme') || 'auto', (k) => { applyTheme(k); api('owner/settings', 'POST', { theme: k }); }),
+      ...installSection(), h("h3", {}, "Appearance"), h('p', { class: 'sub' }, 'Theme'), chips({ auto: 'Auto', light: 'Light', dark: 'Dark' }, localStorage.getItem('theme') || 'auto', (k) => { applyTheme(k); api('owner/settings', 'POST', { theme: k }); }),
       h('p', { class: 'sub' }, 'Paper for new pages'), chips({ lined: 'Lined', dots: 'Dotted', grid: 'Grid', plain: 'Plain' }, st.paper, (k) => { S.settings.paper = k; api('owner/settings', 'POST', { paper: k }); }),
       h('p', { class: 'sub' }, 'Diary name'), nm,
       h('h3', {}, 'PIN'), h('p', { class: 'hint' }, 'Changing the PIN makes all devices and share-link viewers sign in again. PIN must be 4 or 8 digits.'), cp, np,
@@ -712,7 +712,7 @@ function searchScreen() {
   const inp = h('input', { class: 'field', placeholder: 'Search by word, #tag or date…', oninput: (e) => { query = e.target.value; draw(); } });
   const chipsRow = allTags.length ? h('div', { class: 'chips', style: { margin: '10px 16px' } }, allTags.map((t) => h('button', { class: 'chip', onclick: (e) => { tag = tag === t ? null : t; [...e.target.parentNode.children].forEach((c) => c.classList.remove('on')); if (tag) e.target.classList.add('on'); draw(); } }, '#' + t))) : null;
   draw();
-  root.replaceChildren(h('div', { class: 'home' }, topbar(iconBtn('back', () => history.back(), 'back'), h('div', { class: 'ttl' }, 'Khojo'), null), h('div', { style: { padding: '6px 16px 0' } }, inp), chipsRow, res));
+  root.replaceChildren(h('div', { class: 'home' }, topbar(iconBtn('back', () => history.back(), 'back'), h('div', { class: 'ttl' }, 'Search'), null), h('div', { style: { padding: '6px 16px 0' } }, inp), chipsRow, res));
   setTimeout(() => inp.focus(), 250);
 }
 
@@ -751,7 +751,7 @@ function moodScreen(noPush) {
 const CARDSTYLES = {
   parchment: { bg: '#f6eeda', bg2: '#eee0c2', ink: '#4a3626', accent: '#7a3e2b', name: 'Parchment' },
   midnight: { bg: '#141c33', bg2: '#1e2a4a', ink: '#e6c27a', accent: '#e6c27a', name: 'Midnight Gold' },
-  rose: { bg: '#f9e8ec', bg2: '#f2d4dc', ink: '#7b2d4a', accent: '#a04a68', name: 'Gulabi' },
+  rose: { bg: '#f9e8ec', bg2: '#f2d4dc', ink: '#7b2d4a', accent: '#a04a68', name: 'Pink' },
 };
 async function drawCard(cv, text, st, meta) {
   try { await Promise.all([document.fonts.load('76px Yatra'), document.fonts.load('34px Kalam')]); } catch {}
@@ -937,7 +937,7 @@ async function doBackup() {
       } catch {}
     }
     const blob = zipStore(files);
-    const a = h('a', { href: URL.createObjectURL(blob), download: 'dayri-backup-' + todayStrLocal() + '.zip' }); document.body.append(a); a.click(); a.remove();
+    const a = h('a', { href: URL.createObjectURL(blob), download: 'diary-backup-' + todayStrLocal() + '.zip' }); document.body.append(a); a.click(); a.remove();
     toast(`Backup ready (${(blob.size / 1024 / 1024).toFixed(1)} MB, ${files.length - 1} media files)`, 5000);
   } catch (e) { toast('Backup failed: ' + e.message, 4000); }
 }
