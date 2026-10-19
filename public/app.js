@@ -567,8 +567,35 @@ function home(first) {
   root.replaceChildren(h('div', { class: 'home' },
     topbar(null, h('div', { class: 'ttl' }, S.name), [iconBtn('search', searchScreen, 'khojo'), S.readonly ? null : iconBtn('chart', () => moodScreen(), 'mood'), themeBtn(), S.readonly ? null : iconBtn('gear', openSettings, 'settings')]),
     h('div', { class: 'yr' }, iconBtn('back', () => { S.year--; home(); }), h('b', {}, y), h('button', { class: 'ib flip', onclick: () => { S.year++; home(); }, html: IC.back })),
-    installBar(), tabs, stats, promptBar(), otdSection(), h('div', { class: 'cards' }, list),
+    installBar(), shayariBtn(), tabs, stats, promptBar(), otdSection(), h('div', { class: 'cards' }, list),
     S.readonly ? null : h('button', { class: 'fab', onclick: newPage, 'aria-label': 'new page' }, ico('plus'))));
+}
+
+/* ---------- Saari Shayari: one scrolling list of all shayari pages ---------- */
+const isShayari = (p) => (p.tags || []).includes('shayari');
+function shayariBtn() {
+  const n = S.pages.filter(isShayari).length;
+  if (!n) return null;
+  return h('button', { class: 'shbtn', onclick: () => shayariScreen() }, h('span', {}, '\ud83d\udcd6 Saari Shayari'), h('small', {}, n + ' shayari'));
+}
+function shayariScreen(noPush) {
+  if (!noPush) push({ v: 'shayari' });
+  if (curAudio) curAudio.a.pause();
+  cur = null;
+  const list = S.pages.filter(isShayari).sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0));
+  const cards = list.map((p) => {
+    const d = parseDay(p.day), first = p.items.find((i) => i.t === 'photo');
+    const txs = p.items.filter((i) => i.t === 'text' && i.text).sort((a, b) => b.text.length - a.text.length);
+    const body = txs[0] ? txs[0].text : (p.title || '');
+    return h('button', { class: 'shcard', onclick: () => openPage(p.id) },
+      first ? h('img', { class: 'shth', src: mediaUrl(first.mid), alt: '', loading: 'lazy' }) : h('div', { class: 'shth empty-th', html: STK.flower }),
+      h('div', { class: 'shm' }, h('div', { class: 'sht' }, body), h('div', { class: 'shd' }, d.getDate() + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear())));
+  });
+  root.replaceChildren(h('div', { class: 'home' },
+    topbar(iconBtn('back', () => history.back(), 'back'), h('div', { class: 'ttl' }, 'Saari Shayari'), null),
+    h('div', { class: 'stats' }, list.length + ' shayari'),
+    h('div', { class: 'shlist' }, cards.length ? cards : [h('p', { class: 'muted', style: { padding: '26px', textAlign: 'center' } }, 'Abhi koi shayari nahi.')])));
+  window.scrollTo(0, 0);
 }
 function card(p) {
   const d = parseDay(p.day), first = p.items.find((i) => i.t === 'photo'), txt = p.items.find((i) => i.t === 'text');
@@ -609,6 +636,7 @@ window.addEventListener('popstate', async () => {
   const st = history.state || { v: 'home' };
   if (st.v === 'page') return openPage(st.id, false, true);
   if (st.v === 'settings') return openSettings(true);
+  if (st.v === 'shayari') return shayariScreen(true);
   home();
 });
 

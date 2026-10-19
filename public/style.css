@@ -193,3 +193,13 @@ input[type=range]{width:100%;accent-color:var(--accd)}
 .card.pinned .ct::before{content:'\2605 ';color:var(--accd)}
 
 @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+.shbtn{display:flex;align-items:center;justify-content:space-between;gap:10px;width:calc(100% - 28px);margin:6px 14px 2px;padding:12px 16px;border-radius:14px;border:1px solid var(--line);background:var(--card,rgba(255,255,255,.04));color:var(--ink);font:inherit;font-size:15px;font-weight:600;cursor:pointer;text-align:left}
+.shbtn small{font-weight:400;opacity:.65;font-size:12px}
+.shlist{display:flex;flex-direction:column;gap:10px;padding:6px 14px 40px}
+.shcard{display:flex;gap:12px;align-items:flex-start;width:100%;padding:12px;border-radius:14px;border:1px solid var(--line);background:var(--card,rgba(255,255,255,.04));color:var(--ink);font:inherit;text-align:left;cursor:pointer}
+.shth{flex:none;width:64px;height:64px;border-radius:10px;object-fit:cover;border:2px solid #fff}
+.shth.empty-th{display:flex;align-items:center;justify-content:center}
+.shm{min-width:0;flex:1}
+.sht{white-space:pre-line;font-family:Kalam,cursive;font-size:16px;line-height:1.45;word-break:break-word}
+.shd{margin-top:6px;font-size:11px;opacity:.55;letter-spacing:.3px}
