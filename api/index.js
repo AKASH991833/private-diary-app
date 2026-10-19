@@ -181,11 +181,11 @@ module.exports = async (req, res) => {
       if (parts[1] === 'logout') { clearCookie(res, 'od'); return send(res, 200, { ok: true }); }
       // One-time PIN reset: needs the secret key (only its sha256 lives here). Self-disables after one success.
       if (parts[1] === 'reset' && method === 'POST') {
-        if (await getSet('reset_done')) return send(res, 410, { error: 'Reset ab band ho chuka hai.' });
+        if (await getSet('reset_done')) return send(res, 410, { error: 'Reset pehle hi ho chuka hai. Naye PIN se login karo.' });
         const key = 'reset:' + ip(req), gkey = 'reset:global';
         const w = Math.max(await guard(key), await guard(gkey));
         if (w) return send(res, 429, { error: `Bahut galat try. ${w} min baad try karo.` });
-        if (!safeEq(sha(String(body.key || '')), RESET_HASH)) { await fail(key); await fail(gkey, 10, 60 * 60000); return send(res, 403, { error: 'Reset key galat hai.' }); }
+        if (!safeEq(sha(String(body.key || '').replace(/\s+/g, '')), RESET_HASH)) { await fail(key); await fail(gkey, 10, 60 * 60000); return send(res, 403, { error: 'Reset key galat hai.' }); }
         const np = String(body.pin || '');
         if (!PIN_RE.test(np)) return send(res, 400, { error: 'PIN 4 ya 8 digits ka hona chahiye.' });
         const salt = rid(12);

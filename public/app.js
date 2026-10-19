@@ -474,28 +474,32 @@ function gateOwner() {
       h('div', { class: 'bsub' }, 'Sirf owner ke liye'),
       lockSeal(), pw, pinCtl(() => pw), err,
       h('button', { class: 'btn', onclick: go }, 'Kholo'))),
-    h('button', { class: 'linklike', onclick: resetModal }, 'PIN bhool gaye? Reset karo')));
+    h('button', { class: 'linklike', onclick: () => resetModal() }, 'PIN bhool gaye? Reset karo')));
+  const rl = /^#reset=([A-Za-z0-9]+)$/.exec(location.hash);
+  if (rl) { history.replaceState(null, '', location.pathname); setTimeout(() => resetModal(rl[1]), 250); }
 }
-function resetModal() {
-  const key = h('input', { class: 'field', placeholder: 'Reset key (WhatsApp par mila)', autocomplete: 'off' });
+function resetModal(prefill = '') {
+  const key = h('input', { class: 'field', placeholder: 'Reset key (WhatsApp par mila)', autocomplete: 'off', value: prefill });
   const p1 = h('input', { class: 'field', type: 'password', inputmode: 'numeric', maxlength: '8', placeholder: 'Naya PIN (4 ya 8 digits)', autocomplete: 'off' });
   const p2 = h('input', { class: 'field', type: 'password', inputmode: 'numeric', maxlength: '8', placeholder: 'Naya PIN dobara', autocomplete: 'off' });
   const err = h('div', { class: 'err' });
   let lastP = p1; p1.onfocus = () => { lastP = p1; }; p2.onfocus = () => { lastP = p2; };
   pinKeys(p1); pinKeys(p2, () => m.el.querySelector('.btn').click());
+  const btn = h('button', { class: 'btn', onclick: async () => {
+    err.textContent = '';
+    const k = key.value.replace(/\s+/g, '');
+    if (!k) { err.textContent = 'Reset key daalo.'; return; }
+    if (!PINRE.test(p1.value)) { err.textContent = 'PIN 4 ya 8 digits ka hona chahiye.'; return; }
+    if (p1.value !== p2.value) { err.textContent = 'Dono PIN same nahi hai.'; return; }
+    btn.disabled = true; btn.textContent = 'Ek second\u2026';
+    try {
+      await api('owner/reset', 'POST', { key: k, pin: p1.value });
+      sessionStorage.setItem('d_alive', '1'); m.close(); toast('Naya PIN set ho gaya'); startOwner();
+    } catch (e) { err.textContent = e.message; btn.disabled = false; btn.textContent = 'Naya PIN set karo'; }
+  } }, 'Naya PIN set karo');
   const m = modal('PIN reset', h('div', {},
     h('p', { class: 'hint' }, 'Reset key sirf ek baar chalegi. Naya PIN set hote hi purane saare login band ho jayenge.'),
-    key, p1, p2, pinCtl(() => lastP), err,
-    h('button', { class: 'btn', onclick: async () => {
-      err.textContent = '';
-      if (!key.value.trim()) { err.textContent = 'Reset key daalo.'; return; }
-      if (!PINRE.test(p1.value)) { err.textContent = 'PIN 4 ya 8 digits ka hona chahiye.'; return; }
-      if (p1.value !== p2.value) { err.textContent = 'Dono PIN same nahi hai.'; return; }
-      try {
-        await api('owner/reset', 'POST', { key: key.value.trim(), pin: p1.value });
-        sessionStorage.setItem('d_alive', '1'); m.close(); toast('Naya PIN set ho gaya'); startOwner();
-      } catch (e) { err.textContent = e.message; }
-    } }, 'Naya PIN set karo')));
+    key, p1, p2, pinCtl(() => lastP), err, btn));
 }
 async function startOwner() {
   if (!sessionStorage.getItem('d_alive')) { try { await api('owner/logout', 'POST'); } catch {} return gateOwner(); }
