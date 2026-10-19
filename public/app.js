@@ -453,6 +453,11 @@ function themeBtn() {
 const lockSeal = () => h('div', { class: 'seal', html: IC.lock });
 
 const PINRE = /^(\d{4}|\d{8})$/;
+/* PIN helpers: manual Backspace (some numeric keypads don't send it through), plus on-screen backspace/clear keys. */
+const pinKeys = (i, onEnter) => { i.onkeydown = (e) => { if (e.key === 'Backspace') { e.preventDefault(); i.value = i.value.slice(0, -1); } else if (e.key === 'Enter' && onEnter) onEnter(); }; };
+const pinCtl = (get) => h('div', { class: 'pinctl' },
+  h('button', { class: 'pkey', onpointerdown: (e) => { e.preventDefault(); const i = get(); i.value = i.value.slice(0, -1); i.focus(); }, 'aria-label': 'Backspace' }, '\u232B'),
+  h('button', { class: 'pkey', onpointerdown: (e) => { e.preventDefault(); const i = get(); i.value = ''; i.focus(); }, 'aria-label': 'Clear' }, 'Saaf karo'));
 function gateOwner() {
   S.mode = 'gate'; document.title = 'Diary';
   const pw = h('input', { class: 'field pinin', type: 'password', inputmode: 'numeric', pattern: '[0-9]*', maxlength: '8', placeholder: '\u2022\u2022\u2022\u2022', autocomplete: 'current-password', 'aria-label': 'PIN' }), err = h('div', { class: 'err' });
@@ -462,12 +467,12 @@ function gateOwner() {
     try { await api('owner/login', 'POST', { password: pw.value }); sessionStorage.setItem('d_alive', '1'); startOwner(); }
     catch (e) { err.textContent = e.message; pw.value = ''; }
   };
-  pw.onkeydown = (e) => e.key === 'Enter' && go();
+  pinKeys(pw, go);
   root.replaceChildren(h('div', { class: 'gate' },
     h('div', { class: 'book' }, h('div', { class: 'bookin' },
       h('div', { class: 'btitle' }, 'Meri Dayri'),
       h('div', { class: 'bsub' }, 'Sirf owner ke liye'),
-      lockSeal(), pw, err,
+      lockSeal(), pw, pinCtl(() => pw), err,
       h('button', { class: 'btn', onclick: go }, 'Kholo'))),
     h('button', { class: 'linklike', onclick: resetModal }, 'PIN bhool gaye? Reset karo')));
 }
@@ -476,9 +481,11 @@ function resetModal() {
   const p1 = h('input', { class: 'field', type: 'password', inputmode: 'numeric', maxlength: '8', placeholder: 'Naya PIN (4 ya 8 digits)', autocomplete: 'off' });
   const p2 = h('input', { class: 'field', type: 'password', inputmode: 'numeric', maxlength: '8', placeholder: 'Naya PIN dobara', autocomplete: 'off' });
   const err = h('div', { class: 'err' });
+  let lastP = p1; p1.onfocus = () => { lastP = p1; }; p2.onfocus = () => { lastP = p2; };
+  pinKeys(p1); pinKeys(p2, () => m.el.querySelector('.btn').click());
   const m = modal('PIN reset', h('div', {},
     h('p', { class: 'hint' }, 'Reset key sirf ek baar chalegi. Naya PIN set hote hi purane saare login band ho jayenge.'),
-    key, p1, p2, err,
+    key, p1, p2, pinCtl(() => lastP), err,
     h('button', { class: 'btn', onclick: async () => {
       err.textContent = '';
       if (!key.value.trim()) { err.textContent = 'Reset key daalo.'; return; }
@@ -741,7 +748,7 @@ function lockScreen() {
   const lk = lockGet();
   const pw = h('input', { class: 'field', type: 'password', inputmode: 'numeric', placeholder: 'PIN', autocomplete: 'off' }), err = h('div', { class: 'err' });
   const go = async () => { err.textContent = ''; if (await sha256hex(lk.s + pw.value) === lk.h) { sessionStorage.setItem('d_unlock', '1'); startOwner(); } else err.textContent = 'PIN galat hai.'; };
-  pw.onkeydown = (e) => e.key === 'Enter' && go();
+  pinKeys(pw, go);
   const bioBtn = localStorage.getItem('applockCred') ? h('button', { class: 'btn sec', onclick: async () => {
     try {
       const id = b64ToU8(localStorage.getItem('applockCred'));
@@ -749,12 +756,14 @@ function lockScreen() {
       sessionStorage.setItem('d_unlock', '1'); startOwner();
     } catch (e) { err.textContent = 'Fingerprint nahi chala, PIN se kholo.'; }
   } }, 'Fingerprint / Face se kholo') : null;
-  root.replaceChildren(h('div', { class: 'gate' }, lockSeal(), h('h1', {}, 'Meri Dayri'), h('p', { class: 'muted' }, 'App lock laga hai'), pw, err, h('button', { class: 'btn', onclick: go }, 'Kholo'), bioBtn));
+  root.replaceChildren(h('div', { class: 'gate' }, lockSeal(), h('h1', {}, 'Meri Dayri'), h('p', { class: 'muted' }, 'App lock laga hai'), pw, pinCtl(() => pw), err, h('button', { class: 'btn', onclick: go }, 'Kholo'), bioBtn));
   if (bioBtn && localStorage.getItem('applockAuto') === '1') setTimeout(() => bioBtn.click(), 350);
 }
 function setPinModal() {
   const p1 = h('input', { class: 'field', type: 'password', inputmode: 'numeric', placeholder: 'Naya PIN (4-6 ank)' }), p2 = h('input', { class: 'field', type: 'password', inputmode: 'numeric', placeholder: 'PIN dobara' }), err = h('div', { class: 'err' });
-  const m = modal('PIN lock', h('div', {}, p1, p2, err, h('button', { class: 'btn', onclick: async () => {
+  let lastL = p1; p1.onfocus = () => { lastL = p1; }; p2.onfocus = () => { lastL = p2; };
+  pinKeys(p1); pinKeys(p2);
+  const m = modal('PIN lock', h('div', {}, p1, p2, pinCtl(() => lastL), err, h('button', { class: 'btn', onclick: async () => {
     if (!/^\d{4,6}$/.test(p1.value)) return err.textContent = 'PIN 4 se 6 ank ka rakho.';
     if (p1.value !== p2.value) return err.textContent = 'Dono PIN same nahi hain.';
     const salt = Math.random().toString(36).slice(2);
