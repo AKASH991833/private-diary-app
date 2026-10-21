@@ -1,5 +1,8 @@
 # Private Diary
 
+**Live app:** https://private-diary-app-self.vercel.app (owner login required)
+
+
 A personal diary website you write in yourself, and share read-only with only the people you choose.
 
 - **Owner mode** (`/owner`): password-protected journal. Every day is a page you design yourself.
